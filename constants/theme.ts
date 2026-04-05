@@ -12,18 +12,31 @@ export const Colors = {
   light: {
     text: '#11181C',
     background: '#fff',
+    surface: '#F5F5F5',
+    card: 'rgba(0, 0, 0, 0.05)',
     tint: tintColorLight,
     icon: '#687076',
     tabIconDefault: '#687076',
     tabIconSelected: tintColorLight,
+    primary: '#6200EE',
+    secondary: '#03DAC6',
+    accent: '#FF0266',
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    text: '#FFFFFF',
+    background: '#080808', // Ultra Dark Obsidian
+    surface: '#121212',
+    card: 'rgba(255, 255, 255, 0.08)',
+    tint: '#00F0FF', // Cyan Neon
+    icon: '#8E8E93',
+    tabIconDefault: '#8E8E93',
+    tabIconSelected: '#00F0FF',
+    primary: '#BC00FF', // Electric Purple
+    secondary: '#00F0FF', // Electric Cyan
+    accent: '#FF0055', // Neon Pink
+    success: '#00FF95', // Matrix Green
+    warning: '#FFCC00', // Warning Yellow
+    error: '#FF3B30',
   },
 };
 
