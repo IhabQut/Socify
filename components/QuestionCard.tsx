@@ -1,20 +1,18 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TextInput, Pressable, Dimensions } from 'react-native';
 import Animated, { 
-  useAnimatedStyle, 
-  withSpring, 
   FadeInRight,
   FadeIn,
+  FadeOut,
   Layout,
-  interpolateColor,
+  useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming
 } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import * as Haptics from 'expo-haptics';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface QuestionCardProps {
   type: 'select' | 'input';
@@ -24,6 +22,49 @@ interface QuestionCardProps {
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const OptionChip = ({ option, isSelected, theme, onPress }: any) => {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.95, { damping: 15, stiffness: 300 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+  };
+
+  return (
+    <AnimatedPressable
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={() => onPress(option)}
+      style={[
+        styles.chip,
+        animatedStyle,
+        { 
+          backgroundColor: isSelected ? theme.primary : theme.card,
+          borderColor: isSelected ? theme.primary : theme.border,
+        }
+      ]}
+    >
+      <Text style={[styles.chipText, { color: isSelected ? theme.background : theme.text }]}>
+        {option}
+      </Text>
+      {isSelected && (
+        <Animated.View 
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(200)}
+          style={[styles.activeDot, { backgroundColor: theme.background }]} 
+        />
+      )}
+    </AnimatedPressable>
+  );
+};
 
 export const QuestionCard = ({ type, options, placeholder, onValueChange }: QuestionCardProps) => {
   const colorScheme = useColorScheme() ?? 'dark';
@@ -59,26 +100,12 @@ export const QuestionCard = ({ type, options, placeholder, onValueChange }: Ques
               entering={FadeInRight.delay(index * 100).duration(500)}
               layout={Layout.springify()}
             >
-              <Pressable
-                onPress={() => toggleOption(option)}
-                style={[
-                  styles.chip,
-                  { 
-                    backgroundColor: isSelected ? theme.primary : theme.card,
-                    borderColor: isSelected ? theme.primary : 'rgba(255,255,255,0.1)',
-                  }
-                ]}
-              >
-                <Text style={[styles.chipText, { color: isSelected ? '#fff' : theme.text }]}>
-                  {option}
-                </Text>
-                {isSelected && (
-                  <Animated.View 
-                    entering={FadeIn.duration(200)}
-                    style={[styles.activeDot, { backgroundColor: theme.secondary }]} 
-                  />
-                )}
-              </Pressable>
+              <OptionChip 
+                option={option} 
+                isSelected={isSelected} 
+                theme={theme} 
+                onPress={toggleOption} 
+              />
             </Animated.View>
           );
         })}
@@ -94,16 +121,16 @@ export const QuestionCard = ({ type, options, placeholder, onValueChange }: Ques
           { 
             backgroundColor: theme.card,
             color: theme.text,
-            borderColor: theme.primary + '44',
-            shadowColor: theme.primary,
+            borderColor: theme.border,
           }
         ]}
         placeholder={placeholder}
-        placeholderTextColor={theme.text + '50'}
+        placeholderTextColor={theme.icon}
         value={inputValue}
         onChangeText={handleInputChange}
         selectionColor={theme.primary}
-        autoFocus
+        autoCapitalize="words"
+        autoCorrect={false}
       />
     </Animated.View>
   );
@@ -115,20 +142,20 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
     marginTop: 10,
+    justifyContent: 'center',
   },
   chip: {
-    paddingVertical: 14,
-    paddingHorizontal: 22,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   chipText: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 15,
+    fontWeight: '500',
   },
   activeDot: {
     width: 6,
@@ -138,15 +165,17 @@ const styles = StyleSheet.create({
   },
   input: {
     width: '100%',
-    padding: 24,
-    borderRadius: 20,
-    fontSize: 20,
+    padding: 20,
+    borderRadius: 16,
+    fontSize: 18,
     borderWidth: 1,
     marginTop: 20,
-    fontWeight: '600',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 5,
+    fontWeight: '500',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+    textAlign: 'center',
   },
 });

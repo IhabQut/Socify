@@ -5,38 +5,37 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+const tintColorLight = '#000000';
+const tintColorDark = '#FFFFFF';
 
 export const Colors = {
   light: {
     text: '#11181C',
-    background: '#fff',
+    background: '#FFFFFF',
     surface: '#F5F5F5',
-    card: 'rgba(0, 0, 0, 0.05)',
+    card: '#F8F9FA',
     tint: tintColorLight,
     icon: '#687076',
     tabIconDefault: '#687076',
     tabIconSelected: tintColorLight,
-    primary: '#6200EE',
-    secondary: '#03DAC6',
-    accent: '#FF0266',
+    primary: '#000000',
+    secondary: '#555555',
+    accent: '#0A7EA4',
+    border: '#EAEAEA',
   },
   dark: {
-    text: '#FFFFFF',
-    background: '#080808', // Ultra Dark Obsidian
+    text: '#ECEDEE',
+    background: '#0D0D0D',
     surface: '#121212',
-    card: 'rgba(255, 255, 255, 0.08)',
-    tint: '#00F0FF', // Cyan Neon
-    icon: '#8E8E93',
-    tabIconDefault: '#8E8E93',
-    tabIconSelected: '#00F0FF',
-    primary: '#BC00FF', // Electric Purple
-    secondary: '#00F0FF', // Electric Cyan
-    accent: '#FF0055', // Neon Pink
-    success: '#00FF95', // Matrix Green
-    warning: '#FFCC00', // Warning Yellow
-    error: '#FF3B30',
+    card: '#1A1A1A',
+    tint: tintColorDark,
+    icon: '#9BA1A6',
+    tabIconDefault: '#9BA1A6',
+    tabIconSelected: tintColorDark,
+    primary: '#FFFFFF',
+    secondary: '#A0A0A0',
+    accent: '#5E5CE6', // Soft Indigo for creativity apps
+    border: '#333333',
   },
 };
 

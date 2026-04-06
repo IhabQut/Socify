@@ -6,16 +6,15 @@ import {
   Dimensions,
   Pressable,
   Text,
-  StatusBar,
+  StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { 
   useAnimatedScrollHandler, 
   useSharedValue, 
   useAnimatedStyle, 
   interpolate,
   Extrapolation,
-  useAnimatedRef,
-  scrollTo,
   FadeIn,
 } from 'react-native-reanimated';
 import { Stack, useRouter } from 'expo-router';
@@ -26,9 +25,12 @@ import { FloatingParticle } from '@/components/FloatingParticle';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import * as Haptics from 'expo-haptics';
+import { StorageService } from '@/services/storageService';
+import { useEffect } from 'react';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+// Data omitted for chunk, let's keep all standard items.
 interface OnboardingData {
   id: string;
   title: string;
@@ -40,52 +42,30 @@ interface OnboardingData {
 }
 
 const ONBOARDING_DATA: OnboardingData[] = [
-  {
-    id: '1',
-    title: 'THE FUTURE IS SOCIAL',
-    subtitle: 'Welcome to the next evolution of human connection. Prepared to enter the neon?',
-    style: 'hero',
-    type: 'welcome',
-  },
-  {
-    id: '2',
-    title: 'Pulse Scanning',
-    subtitle: 'Real-time discovery of nearby vibes. Find your tribe in the digital fog.',
-    style: 'split',
-    type: 'discovery',
-  },
-  {
-    id: '3',
-    title: 'Select Your Flux',
-    subtitle: 'What powers your connection? Choose your core interests.',
-    style: 'grid',
-    type: 'question_select',
-    options: ['Cyber-Art', 'Neural-Tech', 'Neon-Fashion', 'Gamer-Vibe', 'City-Run', 'Deep-Music'],
-  },
-  {
-    id: '4',
-    title: 'Identity Alias',
-    subtitle: 'Choose a handle that resonates through the void.',
-    style: 'centered',
-    type: 'question_input',
-    placeholder: 'Enter your alias...',
-  },
-  {
-    id: '5',
-    title: 'SYSTEM READY',
-    subtitle: 'Connection stable. Connection established. Ready to join the network?',
-    style: 'abstract',
-    type: 'final',
-  },
+  { id: '1', title: 'Unlock Your Creativity', subtitle: 'A space designed specially for creators to share, inspire, and connect.', style: 'hero', type: 'welcome' },
+  { id: '2', title: 'Discover Inspiration', subtitle: 'Find curated content tailored to your unique creative vision.', style: 'split', type: 'discovery' },
+  { id: '3', title: 'What drives you?', subtitle: 'Select your primary areas of interest.', style: 'grid', type: 'question_select', options: ['Photography', 'Design', 'Writing', 'Music', 'Art', 'Video', 'Coding'] },
+  { id: '4', title: 'What is your primary goal?', subtitle: 'This decides the type of assets we generate first.', style: 'grid', type: 'question_select', options: ['Grow Following', 'Sell Products', 'Brand Awareness', 'Build Portfolio'] },
+  { id: '5', title: 'Preferred Tone', subtitle: 'How should your brand sound in copies?', style: 'centered', type: 'question_select', options: ['Professional', 'Casual', 'Humorous', 'Bold'] },
+  { id: '6', title: 'Create Your Profile', subtitle: 'Choose how the world sees you.', style: 'centered', type: 'question_input', placeholder: 'Enter your alias...' },
+  { id: '7', title: 'Ready to Inspire?', subtitle: 'Your creative journey begins now.', style: 'hero', type: 'final' },
 ];
 
 export default function OnboardingScreen() {
   const scrollX = useSharedValue(0);
-  const flatListRef = useAnimatedRef<FlatList>();
+  const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
+
+  useEffect(() => {
+    StorageService.hasOnboarded().then(status => {
+      if (status) {
+        router.replace('/(tabs)');
+      }
+    });
+  }, []);
 
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -93,43 +73,38 @@ export default function OnboardingScreen() {
     },
   });
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentIndex < ONBOARDING_DATA.length - 1) {
       const nextIndex = currentIndex + 1;
-      scrollTo(flatListRef, (nextIndex) * SCREEN_WIDTH, 0, true);
+      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/modal');
+      await StorageService.setOnboarded();
+      // @ts-ignore
+      router.replace('/(tabs)');
     }
   };
 
-  const skip = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.replace('/modal');
+  const skip = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await StorageService.setOnboarded();
+    // @ts-ignore
+    router.replace('/(tabs)');
   };
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems[0]) {
+    if (viewableItems && viewableItems.length > 0) {
       setCurrentIndex(viewableItems[0].index);
     }
   }).current;
 
-  // 3-LAYER PARALLAX BACKGROUNDS
-  const farBgStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: interpolate(scrollX.value, [0, SCREEN_WIDTH * 4], [0, -SCREEN_WIDTH * 0.1], Extrapolation.CLAMP) }],
-  }));
-
-  const midBgStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: interpolate(scrollX.value, [0, SCREEN_WIDTH * 4], [0, -SCREEN_WIDTH * 0.3], Extrapolation.CLAMP) }],
-  }));
-
   const nearBgStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: interpolate(scrollX.value, [0, SCREEN_WIDTH * 4], [0, -SCREEN_WIDTH * 0.6], Extrapolation.CLAMP) }],
+    transform: [{ translateX: interpolate(scrollX.value, [0, SCREEN_WIDTH * 6], [0, -SCREEN_WIDTH * 0.2], Extrapolation.CLAMP) }],
   }));
 
-  const renderItem = ({ item }: { item: OnboardingData }) => {
+  const renderItem = ({ item, index }: { item: OnboardingData; index: number }) => {
     return (
-      <View style={{ width: SCREEN_WIDTH }}>
+      <View style={{ width: SCREEN_WIDTH, paddingTop: SCREEN_HEIGHT * 0.1, flex: 1 }}>
         <OnboardingStep 
           title={item.title} 
           subtitle={item.subtitle}
@@ -152,9 +127,9 @@ export default function OnboardingScreen() {
           
           <View style={styles.buttonWrapper}>
             <AnimatedButton 
-              title={currentIndex === ONBOARDING_DATA.length - 1 ? 'LAUNCH NETWORK' : 'INITIALIZE NEXT'} 
+              title={index === ONBOARDING_DATA.length - 1 ? 'Get Started' : 'Continue'} 
               onPress={handleNext}
-              primary={currentIndex === ONBOARDING_DATA.length - 1}
+              primary={index === ONBOARDING_DATA.length - 1}
             />
           </View>
         </OnboardingStep>
@@ -164,33 +139,16 @@ export default function OnboardingScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
       <Stack.Screen options={{ headerShown: false, animation: 'fade' }} />
       
-      {/* FAR LAYER: Distant blur glow */}
-      <Animated.View style={[styles.backgroundLayer, farBgStyle]}>
-        <FloatingParticle color={theme.primary} size={SCREEN_WIDTH * 0.8} delay={0} duration={6000} />
+      <Animated.View style={[styles.backgroundLayer, nearBgStyle]} pointerEvents="none">
+        <FloatingParticle color={theme.accent} size={SCREEN_WIDTH * 0.9} delay={0} duration={12000} />
+        <FloatingParticle color={theme.primary} size={SCREEN_WIDTH * 0.7} delay={1000} duration={15000} />
       </Animated.View>
-
-      {/* MID LAYER: Asset image with moderate shift */}
-      <Animated.Image 
-        source={require('@/assets/images/icon.png')} 
-        style={[styles.backgroundImage, midBgStyle]}
-        resizeMode="cover"
-        blurRadius={15}
-      />
-      
-      {/* NEAR LAYER: Sharper floaters with high shift */}
-      <Animated.View style={[styles.backgroundLayer, nearBgStyle]}>
-        <FloatingParticle color={theme.secondary} size={80} delay={500} duration={4000} />
-        <FloatingParticle color={theme.accent} size={60} delay={1500} duration={5000} />
-      </Animated.View>
-
-      {/* Overlay to dim background */}
-      <View style={[styles.overlay, { backgroundColor: theme.background + 'B3' }]} />
 
       <Animated.FlatList
-        ref={flatListRef}
+        ref={flatListRef as any}
         data={ONBOARDING_DATA}
         renderItem={renderItem}
         horizontal
@@ -202,24 +160,25 @@ export default function OnboardingScreen() {
         viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
         keyExtractor={(item) => item.id}
         bounces={false}
+        keyboardShouldPersistTaps="handled"
       />
 
-      {/* Skip Header */}
-      {currentIndex < ONBOARDING_DATA.length - 1 && (
-        <Animated.View entering={FadeIn.delay(1000)} style={styles.header}>
-          <Pressable onPress={skip}>
-            <Text style={[styles.skipText, { color: theme.text + '88' }]}>SKIP INITIALIZATION</Text>
-          </Pressable>
-        </Animated.View>
-      )}
+      <SafeAreaView style={styles.headerSafeArea} pointerEvents="box-none">
+        {currentIndex < ONBOARDING_DATA.length - 1 && (
+          <Animated.View entering={FadeIn.delay(500)} style={styles.header}>
+            <Pressable onPress={skip} hitSlop={20}>
+              <Text style={[styles.skipText, { color: theme.icon }]}>Skip</Text>
+            </Pressable>
+          </Animated.View>
+        )}
+      </SafeAreaView>
 
-      {/* Futuristic Vertical Progress Indicator */}
-      <View style={styles.pagination}>
+      <View style={styles.pagination} pointerEvents="none">
         {ONBOARDING_DATA.map((_, index) => {
           const dotStyle = useAnimatedStyle(() => {
-            const height = interpolate(scrollX.value, [(index - 1) * SCREEN_WIDTH, index * SCREEN_WIDTH, (index + 1) * SCREEN_WIDTH], [8, 32, 8], Extrapolation.CLAMP);
-            const opacity = interpolate(scrollX.value, [(index - 1) * SCREEN_WIDTH, index * SCREEN_WIDTH, (index + 1) * SCREEN_WIDTH], [0.3, 1, 0.3], Extrapolation.CLAMP);
-            return { height, opacity, backgroundColor: theme.primary };
+            const width = interpolate(scrollX.value, [(index - 1) * SCREEN_WIDTH, index * SCREEN_WIDTH, (index + 1) * SCREEN_WIDTH], [8, 24, 8], Extrapolation.CLAMP);
+            const opacity = interpolate(scrollX.value, [(index - 1) * SCREEN_WIDTH, index * SCREEN_WIDTH, (index + 1) * SCREEN_WIDTH], [0.2, 1, 0.2], Extrapolation.CLAMP);
+            return { width, opacity, backgroundColor: theme.primary };
           });
           return <Animated.View key={index} style={[styles.dot, dotStyle]} />;
         })}
@@ -229,48 +188,12 @@ export default function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  backgroundLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: -3,
-  },
-  backgroundImage: {
-    position: 'absolute',
-    width: SCREEN_WIDTH * 2,
-    height: SCREEN_HEIGHT,
-    zIndex: -2,
-    opacity: 0.25,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: -1,
-  },
-  header: {
-    position: 'absolute',
-    top: 60,
-    right: 24,
-    zIndex: 100,
-  },
-  skipText: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 2,
-  },
-  buttonWrapper: {
-    marginTop: 40,
-    alignItems: 'center',
-    width: '100%',
-  },
-  pagination: {
-    position: 'absolute',
-    top: SCREEN_HEIGHT * 0.4,
-    left: 16,
-    gap: 12,
-  },
-  dot: {
-    width: 3,
-    borderRadius: 2,
-  },
+  container: { flex: 1 },
+  backgroundLayer: { ...StyleSheet.absoluteFillObject, zIndex: -3, opacity: 0.1 },
+  headerSafeArea: { position: 'absolute', top: 20, width: '100%', zIndex: 100 },
+  header: { alignItems: 'flex-end', paddingHorizontal: 24, paddingTop: 10 },
+  skipText: { fontSize: 15, fontWeight: '500' },
+  buttonWrapper: { marginTop: 40, alignItems: 'center', width: '100%', paddingHorizontal: 24, zIndex: 50 },
+  pagination: { position: 'absolute', bottom: 50, flexDirection: 'row', width: '100%', justifyContent: 'center', alignItems: 'center', gap: 8 },
+  dot: { height: 4, borderRadius: 2 },
 });

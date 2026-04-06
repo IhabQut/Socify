@@ -1,14 +1,10 @@
-import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated, { 
   useAnimatedStyle, 
   useSharedValue, 
   withSpring, 
-  withRepeat,
-  withSequence,
   withTiming,
-  interpolate,
-  Easing
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/theme';
@@ -25,47 +21,39 @@ interface AnimatedButtonProps {
 export const AnimatedButton = ({ title, onPress, primary = true }: AnimatedButtonProps) => {
   const colorScheme = useColorScheme() ?? 'dark';
   const scale = useSharedValue(1);
-  const glow = useSharedValue(0.5);
+  const opacity = useSharedValue(1);
   const theme = Colors[colorScheme];
-
-  useEffect(() => {
-    // Constant pulsing glow for focus
-    glow.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.5, { duration: 1500, easing: Easing.inOut(Easing.sin) })
-      ),
-      -1,
-      true
-    );
-  }, []);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
       transform: [{ scale: scale.value }],
+      opacity: opacity.value,
       backgroundColor: primary ? theme.primary : 'transparent',
-      borderColor: theme.primary,
-      borderWidth: primary ? 0 : 2,
-      shadowColor: theme.primary,
-      shadowOpacity: primary ? interpolate(glow.value, [0.5, 1], [0.3, 0.8]) : 0,
-      shadowRadius: interpolate(glow.value, [0.5, 1], [10, 25]),
-      elevation: primary ? interpolate(glow.value, [0.5, 1], [5, 15]) : 0,
+      borderColor: theme.border,
+      borderWidth: primary ? 0 : 1,
+      shadowColor: '#000',
+      shadowOpacity: primary ? 0.15 : 0,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: primary ? 4 : 0,
     };
   });
 
   const textStyle = useAnimatedStyle(() => {
     return {
-      opacity: interpolate(glow.value, [0.5, 1], [0.8, 1]),
+      color: primary ? theme.background : theme.primary,
     };
   });
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.92);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    scale.value = withSpring(0.96, { damping: 15, stiffness: 300 });
+    opacity.value = withTiming(0.9, { duration: 100 });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1);
+    scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+    opacity.value = withTiming(1, { duration: 200 });
   };
 
   return (
@@ -75,8 +63,8 @@ export const AnimatedButton = ({ title, onPress, primary = true }: AnimatedButto
       onPressOut={handlePressOut}
       onPress={onPress}
     >
-      <Animated.Text style={[styles.text, { color: primary ? '#fff' : theme.primary }, textStyle]}>
-        {title.toUpperCase()}
+      <Animated.Text style={[styles.text, textStyle]}>
+        {title}
       </Animated.Text>
     </AnimatedPressable>
   );
@@ -84,16 +72,16 @@ export const AnimatedButton = ({ title, onPress, primary = true }: AnimatedButto
 
 const styles = StyleSheet.create({
   button: {
-    paddingVertical: 18,
-    paddingHorizontal: 40,
-    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 260,
+    minWidth: '80%',
   },
   text: {
     fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 2,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
 });
