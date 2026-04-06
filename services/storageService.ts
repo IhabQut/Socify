@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ONBOARDING_KEY = '@socify_onboarded';
 const CHAT_HISTORY_KEY = '@socify_chat_history';
+const GEN_COUNT_KEY = '@socify_gen_count';
 
 export class StorageService {
   static async setOnboarded() {
@@ -47,5 +48,21 @@ export class StorageService {
     } catch (e) {
       console.warn("Storage Error:", e);
     }
+  }
+
+  static async getGenerationCount(): Promise<number> {
+    try {
+      const val = await AsyncStorage.getItem(GEN_COUNT_KEY);
+      return val ? parseInt(val) : 0;
+    } catch { return 0; }
+  }
+
+  static async incrementGenerationCount(): Promise<number> {
+    try {
+      const current = await this.getGenerationCount();
+      const next = current + 1;
+      await AsyncStorage.setItem(GEN_COUNT_KEY, next.toString());
+      return next;
+    } catch { return 0; }
   }
 }

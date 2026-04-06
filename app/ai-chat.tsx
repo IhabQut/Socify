@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
+import { StyleSheet, View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeIn, Layout, ZoomIn } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -16,11 +18,12 @@ interface Message {
   type: 'text' | 'image_asset';
   text?: string;
   imageUri?: string;
+  downloadUrl?: string; // New field to hold the mock export link
   hasPassed?: boolean;
 }
 
 const DEFAULT_MESSAGES: Message[] = [
-  { id: 'init_1', sender: 'ai', type: 'text', text: "Hello! I'm your Socify AI Agent. Describe your imagination or upload an asset, and I'll generate the marketing materials you need." }
+  { id: 'init_1', sender: 'ai', type: 'text', text: "Hello! I'm your Socify AI Agent. Describe your imagination or upload an asset. (Trial Limit: 3 Prompts)" }
 ];
 
 export default function AiChatScreen() {
@@ -66,15 +69,46 @@ export default function AiChatScreen() {
     }
   };
 
+  const downloadAsset = async (imageUrl: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert("Permission Required", "We need access to your photos to save assets.");
+      return;
+    }
+
+    try {
+      // Mocking a physical download routine to standard Camera Roll mapping
+      const fileUri = FileSystem.documentDirectory + `socify_asset_${Date.now()}.jpg`;
+      const { uri } = await FileSystem.downloadAsync(imageUrl, fileUri);
+      await MediaLibrary.saveToLibraryAsync(uri);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Saved!", "Asset downloaded to your camera roll.");
+    } catch (e) {
+      Alert.alert("Export Error", "Could not save the generated asset.");
+    }
+  };
+
   const clearChat = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await StorageService.clearChatHistory();
     setMessages(DEFAULT_MESSAGES);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim() && !selectedImage) return;
+
+    // Premium Check: Have they hit 3 prompts?
+    const currentCount = await StorageService.getGenerationCount();
+    if (currentCount >= 3) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push('/paywall');
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await StorageService.incrementGenerationCount(); // Tally this prompt
     
     const userMessage: Message = { 
       id: Date.now().toString(), 
@@ -108,7 +142,9 @@ export default function AiChatScreen() {
         setMessages(prev => [...prev, {
            id: Date.now().toString() + '_asset',
            sender: 'ai',
-           type: 'image_asset'
+           type: 'image_asset',
+           // Bind a raw image for testing the device download functionality!
+           downloadUrl: 'https://picsum.photos/800/1200' 
         }]);
       }, 500);
 
@@ -155,10 +191,18 @@ export default function AiChatScreen() {
             if (msg.type === 'image_asset') {
                return (
                  <Animated.View key={msg.id} entering={ZoomIn.duration(400)} style={[styles.assetWrapper, { marginBottom: index === messages.length -1 ? 0 : 24 }]}>
-                    <View style={[styles.imagePlaceholder, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                       <Ionicons name="image-outline" size={40} color={theme.icon} />
-                       <Text style={[styles.assetTag, { color: theme.icon }]}>Generated Artwork • Review</Text>
-                    </View>
+                    <Pressable onPress={() => msg.downloadUrl && downloadAsset(msg.downloadUrl)} style={[styles.imagePlaceholder, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                       {msg.downloadUrl ? (
+                         <Image source={{ uri: msg.downloadUrl }} style={styles.mockedOutput} />
+                       ) : (
+                         <Ionicons name="image-outline" size={40} color={theme.icon} />
+                       )}
+                       
+                       <View style={[styles.downloadOverlay, { backgroundColor: theme.card }]}>
+                         <Ionicons name="download" size={16} color={theme.text} />
+                         <Text style={[styles.downloadText, { color: theme.text }]}>Save to Camera Roll</Text>
+                       </View>
+                    </Pressable>
                  </Animated.View>
                );
             }
@@ -174,26 +218,26 @@ export default function AiChatScreen() {
                   { backgroundColor: isUser ? theme.primary : theme.card, borderColor: isUser ? theme.primary : theme.border }
                 ]}
               >
-                {msg.imageUri && (
+                {msg.imageUri ? (
                   <View style={styles.bubbleAttachmentBox}>
                     <Image source={{ uri: msg.imageUri }} style={styles.bubbleAttachedImage} />
                   </View>
-                )}
+                ) : null}
                 {msg.text ? <Text style={[styles.messageText, { color: isUser ? '#fff' : theme.text }]}>{msg.text}</Text> : null}
               </Animated.View>
             );
           })}
 
-          {isGenerating && (
+          {isGenerating ? (
             <Animated.View entering={FadeIn} style={[styles.messageBubble, styles.aiBubble, { backgroundColor: theme.card, borderColor: theme.border }]}>
                <Text style={[styles.messageText, { color: theme.icon }]}>Building generation parameters...</Text>
             </Animated.View>
-          )}
+          ) : null}
         </ScrollView>
 
         <View style={[styles.inputContainer, { borderTopColor: theme.border, backgroundColor: theme.background }]}>
           
-          {selectedImage && (
+          {selectedImage ? (
             <Animated.View entering={FadeInUp} style={styles.inlineImagePreview}>
               <View style={[styles.inlineImageWrapper, { borderColor: theme.border }]}>
                 <Image source={{ uri: selectedImage }} style={styles.inlineImage} />
@@ -202,7 +246,7 @@ export default function AiChatScreen() {
                 </Pressable>
               </View>
             </Animated.View>
-          )}
+          ) : null}
           
           <View style={styles.inputRow}>
             <Pressable onPress={handlePickImage} style={[styles.attachBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -250,8 +294,10 @@ const styles = StyleSheet.create({
   bubbleAttachmentBox: { marginBottom: 8 },
   bubbleAttachedImage: { width: 200, height: 140, borderRadius: 12 },
   assetWrapper: { width: '100%', alignSelf: 'flex-start' },
-  imagePlaceholder: { width: '100%', height: 260, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  assetTag: { marginTop: 12, fontSize: 13, fontWeight: '500' },
+  imagePlaceholder: { width: '100%', height: 260, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  mockedOutput: { width: '100%', height: '100%' },
+  downloadOverlay: { position: 'absolute', bottom: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, opacity: 0.9 },
+  downloadText: { fontSize: 13, fontWeight: '600' },
   inputContainer: { padding: 16, borderTopWidth: 1 },
   inlineImagePreview: { marginBottom: 16 },
   inlineImageWrapper: { width: 80, height: 80, borderRadius: 12, borderWidth: 1 },
