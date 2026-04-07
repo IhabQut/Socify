@@ -1,32 +1,31 @@
-import React, { useRef, useState } from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  FlatList, 
-  Dimensions,
-  Pressable,
-  Text,
-  StatusBar
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { 
-  useAnimatedScrollHandler, 
-  useSharedValue, 
-  useAnimatedStyle, 
-  interpolate,
-  Extrapolation,
-  FadeIn,
-} from 'react-native-reanimated';
-import { Stack, useRouter } from 'expo-router';
-import { OnboardingStep, OnboardingLayoutStyle } from '@/components/OnboardingStep';
 import { AnimatedButton } from '@/components/AnimatedButton';
-import { QuestionCard } from '@/components/QuestionCard';
 import { FloatingParticle } from '@/components/FloatingParticle';
+import { OnboardingLayoutStyle, OnboardingStep } from '@/components/OnboardingStep';
+import { QuestionCard } from '@/components/QuestionCard';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import * as Haptics from 'expo-haptics';
 import { StorageService } from '@/services/storageService';
-import { useEffect } from 'react';
+import * as Haptics from 'expo-haptics';
+import { Stack, useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Dimensions,
+  FlatList,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
+import Animated, {
+  Extrapolation,
+  FadeIn,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -42,7 +41,7 @@ interface OnboardingData {
 }
 
 const ONBOARDING_DATA: OnboardingData[] = [
-  { id: '1', title: 'Unlock Your Creativity', subtitle: 'A space designed specially for creators to share, inspire, and connect.', style: 'hero', type: 'welcome' },
+  { id: '1', title: 'abed ', subtitle: 'A space designed specially for creators to share, inspire, and connect.', style: 'hero', type: 'welcome' },
   { id: '2', title: 'Discover Inspiration', subtitle: 'Find curated content tailored to your unique creative vision.', style: 'split', type: 'discovery' },
   { id: '3', title: 'What drives you?', subtitle: 'Select your primary areas of interest.', style: 'grid', type: 'question_select', options: ['Photography', 'Design', 'Writing', 'Music', 'Art', 'Video', 'Coding'] },
   { id: '4', title: 'What is your primary goal?', subtitle: 'This decides the type of assets we generate first.', style: 'grid', type: 'question_select', options: ['Grow Following', 'Sell Products', 'Brand Awareness', 'Build Portfolio'] },
@@ -105,29 +104,29 @@ export default function OnboardingScreen() {
   const renderItem = ({ item, index }: { item: OnboardingData; index: number }) => {
     return (
       <View style={{ width: SCREEN_WIDTH, paddingTop: SCREEN_HEIGHT * 0.1, flex: 1 }}>
-        <OnboardingStep 
-          title={item.title} 
+        <OnboardingStep
+          title={item.title}
           subtitle={item.subtitle}
           style={item.style}
         >
           {item.type === 'question_select' && (
-            <QuestionCard 
-              type="select" 
-              options={item.options} 
-              onValueChange={() => {}} 
+            <QuestionCard
+              type="select"
+              options={item.options}
+              onValueChange={() => { }}
             />
           )}
           {item.type === 'question_input' && (
-            <QuestionCard 
-              type="input" 
-              placeholder={item.placeholder} 
-              onValueChange={() => {}} 
+            <QuestionCard
+              type="input"
+              placeholder={item.placeholder}
+              onValueChange={() => { }}
             />
           )}
-          
+
           <View style={styles.buttonWrapper}>
-            <AnimatedButton 
-              title={index === ONBOARDING_DATA.length - 1 ? 'Get Started' : 'Continue'} 
+            <AnimatedButton
+              title={index === ONBOARDING_DATA.length - 1 ? 'Get Started' : 'Continue'}
               onPress={handleNext}
               primary={index === ONBOARDING_DATA.length - 1}
             />
@@ -141,7 +140,7 @@ export default function OnboardingScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
       <Stack.Screen options={{ headerShown: false, animation: 'fade' }} />
-      
+
       <Animated.View style={[styles.backgroundLayer, nearBgStyle]} pointerEvents="none">
         <FloatingParticle color={theme.accent} size={SCREEN_WIDTH * 0.9} delay={0} duration={12000} />
         <FloatingParticle color={theme.primary} size={SCREEN_WIDTH * 0.7} delay={1000} duration={15000} />
