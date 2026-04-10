@@ -1,11 +1,17 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInUp, FadeIn, useSharedValue, useAnimatedStyle, withSpring, Layout } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import RevenueCatUI from 'react-native-purchases-ui';
+import { supabase } from '@/lib/supabase';
+import { usePurchases } from '@/hooks/use-purchases';
+import { restorePurchases, ENTITLEMENT_ID } from '@/lib/purchases';
+import { StorageService, UserProfile } from '@/services/storageService';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -49,18 +55,83 @@ const ExpandableSettingsRow = ({ icon, title, description, children, theme, isDa
 export default function StudioScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
+  const { customerInfo, isPro, isLoading: subLoading, refresh: refreshSub } = usePurchases();
 
-  const [alias, setAlias] = useState('Creator');
+  const [alias, setAlias] = useState('Creative');
   const [interest, setInterest] = useState('Marketing Agency');
+  const [restoring, setRestoring] = useState(false);
+  const [avatarId, setAvatarId] = useState('person');
+
+  // Load persistence
+  useEffect(() => {
+    StorageService.loadUserProfile().then(p => {
+      if (p) {
+        setAlias(p.alias);
+        setInterest(p.primaryFocus);
+        if (p.avatarId) setAvatarId(p.avatarId);
+      }
+    });
+  }, []);
+
+  const saveProfile = async (newAlias: string, newInterest: string) => {
+    await StorageService.saveUserProfile({ alias: newAlias, primaryFocus: newInterest, avatarId });
+  };
 
   const subScale = useSharedValue(1);
   const subAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: subScale.value }] }));
 
-  const PREVIOUS_WORK = [
-    { id: '1', title: 'Summer Promo', type: 'Generated Ad' },
-    { id: '2', title: 'CEO Intro', type: 'Copywriting' },
-    { id: '3', title: 'Q3 Flyer', type: 'Design Asset' },
-  ];
+  // --- Get credits from customerInfo (placeholder until auth is wired up)
+  const credits = isPro ? '∞' : '150';
+  const planLabel = isPro ? 'Socify Pro ✦' : 'Free Plan';
+
+  const handleOpenPaywall = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/paywall');
+  };
+
+  const handlePresentPaywallIfNeeded = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const result = await RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: ENTITLEMENT_ID });
+    if (result !== 'NOT_PRESENTED') refreshSub();
+  };
+
+  const handleRestorePurchases = async () => {
+    setRestoring(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const info = await restorePurchases();
+    setRestoring(false);
+    if (info?.entitlements.active[ENTITLEMENT_ID]) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Restored!', 'Your Socify Pro subscription has been restored.');
+      refreshSub();
+    } else {
+      Alert.alert('No Previous Purchase', 'No active subscription was found for this account.');
+    }
+  };
+
+  const handleCustomerCenter = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await RevenueCatUI.presentCustomerCenter();
+    refreshSub();
+  };
+
+  const [previousWork, setPreviousWork] = useState<any[]>([
+    { id: '1', title: 'Summer Promo', asset_type: 'Generated Ad' },
+    { id: '2', title: 'CEO Intro', asset_type: 'Copywriting' },
+    { id: '3', title: 'Q3 Flyer', asset_type: 'Design Asset' },
+  ]);
+
+  useEffect(() => {
+    async function fetchAssets() {
+      const { data, error } = await supabase
+        .from('generated_assets')
+        .select('id, title, asset_type, created_at')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (data && data.length > 0) setPreviousWork(data);
+    }
+    fetchAssets();
+  }, []);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -68,11 +139,16 @@ export default function StudioScreen() {
         
         {/* Profile Header */}
         <Animated.View entering={FadeInUp.delay(100).duration(800)} style={styles.profileHeader}>
-          <View style={[styles.avatarPlaceholder, { backgroundColor: theme.border }]}>
-            <Ionicons name="person" size={40} color={theme.icon} />
-          </View>
+          <Pressable style={[styles.avatarPlaceholder, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 2 }]}>
+            <Ionicons name={avatarId as any} size={42} color={theme.accent} />
+            <View style={[styles.editAvatarBadge, { backgroundColor: theme.accent }]}>
+              <Ionicons name="camera" size={12} color="#fff" />
+            </View>
+          </Pressable>
           <Text style={[styles.name, { color: theme.text }]}>{alias}</Text>
-          <Text style={[styles.planBadge, { color: theme.primary, borderColor: theme.primary }]}>Free Plan</Text>
+          <View style={[styles.planBadge, { backgroundColor: isPro ? theme.accent + '15' : 'transparent', borderColor: isPro ? theme.accent : theme.border }]}>
+            <Text style={[styles.planBadgeText, { color: isPro ? theme.accent : theme.icon }]}>{planLabel}</Text>
+          </View>
         </Animated.View>
 
         {/* Subscription & Credits */}
@@ -82,36 +158,75 @@ export default function StudioScreen() {
               <Ionicons name="flash" size={18} color="#FF9F0A" />
               <Text style={[styles.statLabel, { color: theme.icon }]}>Credits</Text>
             </View>
-            <Text style={[styles.statValue, { color: theme.text }]}>150</Text>
+            {subLoading ? (
+              <ActivityIndicator color={theme.primary} style={{ marginTop: 6 }} />
+            ) : (
+              <Text style={[styles.statValue, { color: theme.text }]}>{credits}</Text>
+            )}
           </View>
           
           <AnimatedPressable 
-            style={[styles.subBox, subAnimatedStyle, { backgroundColor: theme.primary }]}
+            style={[styles.subBox, subAnimatedStyle, { backgroundColor: isPro ? '#FF9F0A' : theme.primary }]}
             onPressIn={() => { subScale.value = withSpring(0.95); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
             onPressOut={() => subScale.value = withSpring(1)}
+            onPress={isPro ? handleCustomerCenter : handleOpenPaywall}
           >
-            <Text style={[styles.subText, { color: theme.background }]}>Upgrade API</Text>
-            <Text style={[styles.subDesc, { color: theme.background + 'dd' }]}>Connect RevenueCat</Text>
+            <Ionicons name={isPro ? 'star' : 'rocket-outline'} size={20} color={theme.background} style={{ marginBottom: 4 }} />
+            <Text style={[styles.subText, { color: theme.background }]}>{isPro ? 'Manage Plan' : 'Go Pro'}</Text>
+            <Text style={[styles.subDesc, { color: theme.background + 'dd' }]}>{isPro ? 'Socify Pro active' : 'Yearly & Monthly'}</Text>
           </AnimatedPressable>
         </Animated.View>
 
-        {/* Reintroduced Previous Work Module */}
+        {/* Your Creations Section */}
         <Animated.View entering={FadeIn.delay(300).duration(600)} style={styles.historySection}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Previous Generations</Text>
-          <FlatList
-             data={PREVIOUS_WORK}
-             keyExtractor={i => i.id}
-             horizontal
-             showsHorizontalScrollIndicator={false}
-             contentContainerStyle={styles.historyList}
-             renderItem={({ item }) => (
-               <View style={[styles.historyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                 <View style={[styles.historyImage, { backgroundColor: theme.border }]} />
-                 <Text style={[styles.historyTitle, { color: theme.text }]} numberOfLines={1}>{item.title}</Text>
-                 <Text style={[styles.historySubtitle, { color: theme.icon }]} numberOfLines={1}>{item.type}</Text>
-               </View>
-             )}
-          />
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Your Creations</Text>
+            {previousWork.length > 0 && (
+              <Pressable onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
+                <Text style={[styles.seeAllText, { color: theme.accent }]}>View All</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {previousWork.length === 0 ? (
+            <View style={[styles.emptyStateContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View style={[styles.emptyIconCircle, { backgroundColor: theme.accent + '15' }]}>
+                <Ionicons name="color-palette-outline" size={32} color={theme.accent} />
+              </View>
+              <Text style={[styles.emptyStateTitle, { color: theme.text }]}>No assets created yet</Text>
+              <Text style={[styles.emptyStateDesc, { color: theme.icon }]}>Your generated ads, copy, and designs will appear here.</Text>
+              <Pressable 
+                style={[styles.ctaButton, { backgroundColor: theme.accent }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push('/(tabs)/');
+                }}
+              >
+                <Text style={styles.ctaButtonText}>Start Creating</Text>
+                <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </Pressable>
+            </View>
+          ) : (
+            <FlatList
+               data={previousWork}
+               keyExtractor={i => i.id}
+               horizontal
+               showsHorizontalScrollIndicator={false}
+               contentContainerStyle={styles.historyList}
+               renderItem={({ item }) => (
+                 <View style={[styles.historyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                   <View style={[styles.historyImage, { backgroundColor: theme.border }]}>
+                     <Ionicons name="image-outline" size={30} color={theme.icon} opacity={0.3} />
+                   </View>
+                   <Text style={[styles.historyTitle, { color: theme.text }]} numberOfLines={1}>{item.title}</Text>
+                   <View style={styles.historyFooter}>
+                     <Text style={[styles.historySubtitle, { color: theme.icon }]} numberOfLines={1}>{item.asset_type}</Text>
+                     <Ionicons name="checkmark-circle" size={14} color={theme.accent} />
+                   </View>
+                 </View>
+               )}
+            />
+          )}
         </Animated.View>
 
         {/* Scalable Expandable Settings List */}
@@ -119,18 +234,26 @@ export default function StudioScreen() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Application Core</Text>
           
           <View style={styles.settingsBlock}>
-             <ExpandableSettingsRow icon="person-outline" title="Creator Profile" description="Edit your Alias and preferences" theme={theme}>
+              <ExpandableSettingsRow icon="person-outline" title="Creator Profile" description="Edit your Alias and preferences" theme={theme}>
                 <View style={styles.editorContent}>
                   <View style={styles.inputGroup}>
                     <Text style={[styles.inputLabel, { color: theme.icon }]}>Alias</Text>
-                    <TextInput style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} value={alias} onChangeText={setAlias} />
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
+                      value={alias} 
+                      onChangeText={(v) => { setAlias(v); saveProfile(v, interest); }} 
+                    />
                   </View>
                   <View style={styles.inputGroup}>
                     <Text style={[styles.inputLabel, { color: theme.icon }]}>Focus / Industry</Text>
-                    <TextInput style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} value={interest} onChangeText={setInterest} />
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
+                      value={interest} 
+                      onChangeText={(v) => { setInterest(v); saveProfile(alias, v); }} 
+                    />
                   </View>
                 </View>
-             </ExpandableSettingsRow>
+              </ExpandableSettingsRow>
 
              <ExpandableSettingsRow icon="server-outline" title="Database Configuration" description="Environment connectivity & sync" theme={theme}>
                <Text style={[styles.mockEnvText, { color: theme.icon }]}>Syncing with SECURE_DB_URL via Expo dotenv. Subscriptions routed to RevenueCat identifiers.</Text>
@@ -142,8 +265,29 @@ export default function StudioScreen() {
              </ExpandableSettingsRow>
              
              <ExpandableSettingsRow icon="cart-outline" title="Restore Purchases" description="Sync your App Store subscriptions" theme={theme}>
-                <Pressable style={[styles.miniButton, { backgroundColor: theme.primary }]}><Text style={styles.miniBtnText}>Restore via RevenueCat SDK</Text></Pressable>
+                <Pressable
+                  style={[styles.miniButton, { backgroundColor: theme.primary, opacity: restoring ? 0.6 : 1 }]}
+                  onPress={handleRestorePurchases}
+                  disabled={restoring}
+                >
+                  {restoring ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.miniBtnText}>Restore via RevenueCat SDK</Text>
+                  )}
+                </Pressable>
              </ExpandableSettingsRow>
+
+             {isPro && (
+               <ExpandableSettingsRow icon="people-circle-outline" title="Manage Subscription" description="Cancel, change plan, or get support" theme={theme}>
+                 <Pressable
+                   style={[styles.miniButton, { backgroundColor: '#FF9F0A' }]}
+                   onPress={handleCustomerCenter}
+                 >
+                   <Text style={styles.miniBtnText}>Open Customer Center</Text>
+                 </Pressable>
+               </ExpandableSettingsRow>
+             )}
 
              <ExpandableSettingsRow icon="trash-outline" title="Delete Account" description="Erase all generation data" isDanger theme={theme}>
                <Text style={[styles.mockEnvText, { color: '#FF3B30' }]}>This action is irreversible and drops your configuration from the DB securely.</Text>
@@ -160,8 +304,10 @@ const styles = StyleSheet.create({
   scrollContent: { paddingVertical: 24, paddingBottom: 100 },
   profileHeader: { alignItems: 'center', marginTop: 20, marginBottom: 32 },
   avatarPlaceholder: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  editAvatarBadge: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
   name: { fontSize: 28, fontWeight: '800', marginBottom: 8 },
-  planBadge: { fontSize: 13, fontWeight: '700', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, overflow: 'hidden'},
+  planBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+  planBadgeText: { fontSize: 13, fontWeight: '700' },
   statsRow: { flexDirection: 'row', gap: 16, marginBottom: 40, paddingHorizontal: 24 },
   statBox: { flex: 1, padding: 20, borderRadius: 24, alignItems: 'flex-start', borderWidth: 1 },
   creditHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
@@ -172,12 +318,21 @@ const styles = StyleSheet.create({
   subDesc: { fontSize: 13, fontWeight: '500' },
 
   historySection: { marginBottom: 32 },
-  sectionTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16, paddingHorizontal: 24 },
-  historyList: { paddingHorizontal: 24, gap: 12 },
-  historyCard: { width: 140, padding: 12, borderRadius: 20, borderWidth: 1 },
-  historyImage: { width: '100%', height: 100, borderRadius: 12, marginBottom: 12 },
-  historyTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
-  historySubtitle: { fontSize: 13, fontWeight: '500' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, marginBottom: 16 },
+  sectionTitle: { fontSize: 20, fontWeight: '700' },
+  seeAllText: { fontSize: 14, fontWeight: '600' },
+  emptyStateContainer: { marginHorizontal: 24, padding: 32, borderRadius: 24, borderWidth: 1, alignItems: 'center', gap: 12 },
+  emptyIconCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyStateTitle: { fontSize: 18, fontWeight: '700' },
+  emptyStateDesc: { fontSize: 14, fontWeight: '500', textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
+  ctaButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 24, marginTop: 8 },
+  ctaButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  historyList: { paddingHorizontal: 24, gap: 14 },
+  historyCard: { width: 160, padding: 12, borderRadius: 20, borderWidth: 1 },
+  historyImage: { width: '100%', height: 110, borderRadius: 12, marginBottom: 12, justifyContent: 'center', alignItems: 'center' },
+  historyTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
+  historyFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  historySubtitle: { fontSize: 12, fontWeight: '500', flex: 1 },
 
   settingsSection: { marginBottom: 20 },
   settingsBlock: { gap: 12, paddingHorizontal: 24 },

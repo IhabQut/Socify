@@ -3,8 +3,35 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const ONBOARDING_KEY = '@socify_onboarded';
 const CHAT_HISTORY_KEY = '@socify_chat_history';
 const GEN_COUNT_KEY = '@socify_gen_count';
+const USER_PROFILE_KEY = '@socify_user_profile';
+
+export interface UserProfile {
+  alias: string;
+  primaryFocus: string;
+  avatarId?: string;
+}
 
 export class StorageService {
+  static async saveUserProfile(profile: UserProfile) {
+    try {
+      await AsyncStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+    } catch (e) {
+      console.warn("Storage Error:", e);
+    }
+  }
+
+  static async loadUserProfile(): Promise<UserProfile | null> {
+    try {
+      const value = await AsyncStorage.getItem(USER_PROFILE_KEY);
+      if (value !== null) {
+        return JSON.parse(value);
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  }
+
   static async setOnboarded() {
     try {
       await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
