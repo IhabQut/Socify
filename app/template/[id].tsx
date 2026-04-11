@@ -51,15 +51,19 @@ const DEFAULT_TEMPLATE: DesignTemplate = {
 };
 
 const PickerSheet = ({ visible, onClose, onCamera, onLibrary, theme }: any) => (
-    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
-        <Pressable style={styles.sheetOverlay} onPress={onClose}>
-            <Animated.View entering={FadeInUp.duration(300)} style={[styles.sheetContainer, { backgroundColor: theme.card }]}>
+    <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
+        <Pressable style={[styles.sheetOverlay, { backgroundColor: theme.overlay }]} onPress={onClose}>
+            <Animated.View
+                entering={FadeInUp.duration(350).springify().damping(15)}
+                exiting={FadeInDown.duration(250)}
+                style={[styles.sheetContainer, { backgroundColor: theme.card }]}
+            >
                 <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
                 <Text style={[styles.sheetTitle, { color: theme.text }]}>Add Media</Text>
 
                 <Pressable style={[styles.sheetOption, { borderColor: theme.border }]} onPress={onCamera}>
-                    <View style={[styles.sheetOptionIcon, { backgroundColor: '#5E5CE620' }]}>
-                        <Ionicons name="camera-outline" size={22} color="#5E5CE6" />
+                    <View style={[styles.sheetOptionIcon, { backgroundColor: theme.accent + '20' }]}>
+                        <Ionicons name="camera-outline" size={22} color={theme.accent} />
                     </View>
                     <View style={styles.sheetOptionText}>
                         <Text style={[styles.sheetOptionTitle, { color: theme.text }]}>Take a Photo</Text>
@@ -69,8 +73,8 @@ const PickerSheet = ({ visible, onClose, onCamera, onLibrary, theme }: any) => (
                 </Pressable>
 
                 <Pressable style={[styles.sheetOption, { borderColor: theme.border }]} onPress={onLibrary}>
-                    <View style={[styles.sheetOptionIcon, { backgroundColor: '#32ADE620' }]}>
-                        <Ionicons name="images-outline" size={22} color="#32ADE6" />
+                    <View style={[styles.sheetOptionIcon, { backgroundColor: theme.accent + '20' }]}>
+                        <Ionicons name="images-outline" size={22} color={theme.accent} />
                     </View>
                     <View style={styles.sheetOptionText}>
                         <Text style={[styles.sheetOptionTitle, { color: theme.text }]}>Choose from Library</Text>
@@ -159,7 +163,7 @@ const RequirementInput = ({ req, theme, isLast }: any) => {
                 </View>
                 {pickedUri && (
                     <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPickedUri(null); }} hitSlop={10}>
-                        <Ionicons name="close-circle" size={22} color="#FF3B30" />
+                        <Ionicons name="close-circle" size={22} color={theme.danger} />
                     </Pressable>
                 )}
             </View>
@@ -179,7 +183,7 @@ const RequirementInput = ({ req, theme, isLast }: any) => {
                             </Pressable>
                         </View>
                         <View style={[styles.previewBadge, { backgroundColor: theme.primary }]}>
-                            <Ionicons name="checkmark" size={14} color="#fff" />
+                            <Ionicons name="checkmark" size={14} color={theme.background} />
                         </View>
                     </Animated.View>
                 ) : (
@@ -262,25 +266,25 @@ export default function TemplateExecutionScreen() {
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} bounces={false}>
 
                     {/* Header / Video Preview Hero */}
-                    <View style={[styles.heroSection, { backgroundColor: theme.card, paddingTop: insets.top }]}>
+                    <Animated.View entering={FadeIn.duration(800)} style={[styles.heroSection, { backgroundColor: theme.card, paddingTop: insets.top, borderBottomColor: theme.border }]}>
                         {/* Back Button */}
                         <Pressable style={styles.closeButton} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}>
-                            <Ionicons name="close-circle" size={32} color="#ffffffdd" />
+                            <Ionicons name="close-circle" size={32} color={theme.icon} />
                         </Pressable>
 
-                        <View style={[styles.videoPlaceholder, { backgroundColor: '#111' }]}>
-                            <Ionicons name="play-circle-outline" size={64} color="#ffffff88" />
-                            <Text style={styles.videoMockText}>Template Video Preview</Text>
+                        <View style={[styles.videoPlaceholder, { backgroundColor: theme.surface }]}>
+                            <Ionicons name="play-circle-outline" size={64} color={theme.icon} />
+                            <Text style={[styles.videoMockText, { color: theme.icon }]}>Template Video Preview</Text>
                         </View>
 
                         <View style={styles.heroDetails}>
                             <Text style={[styles.heroCategory, { color: theme.primary }]}>{template.category}</Text>
                             <Text style={[styles.heroTitle, { color: theme.text }]}>{template.title}</Text>
                         </View>
-                    </View>
+                    </Animated.View>
 
                     {/* Inputs Section */}
-                    <Animated.View entering={FadeInUp.delay(100).duration(600)} style={styles.section}>
+                    <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.section}>
                         <Text style={[styles.sectionTitle, { color: theme.text }]}>Template Assets ({template.requirements?.length || 0})</Text>
 
                         <View style={[styles.cardContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -296,7 +300,7 @@ export default function TemplateExecutionScreen() {
                     </Animated.View>
 
                     {/* Preferences Section */}
-                    <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.section}>
+                    <Animated.View entering={FadeInUp.delay(300).duration(600)} style={styles.section}>
                         <Text style={[styles.sectionTitle, { color: theme.text }]}>AI Preferences</Text>
 
                         <View style={[styles.cardContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -311,7 +315,7 @@ export default function TemplateExecutionScreen() {
                                     style={[styles.toggle, { backgroundColor: aiCaption ? theme.primary : theme.background, borderColor: aiCaption ? theme.primary : theme.border }]}
                                     onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAiCaption(!aiCaption); }}
                                 >
-                                    <Animated.View layout={Layout.springify()} style={[styles.knob, { left: aiCaption ? 22 : 2 }]} />
+                                    <Animated.View layout={Layout.springify()} style={[styles.knob, { left: aiCaption ? 22 : 2, backgroundColor: theme.white }]} />
                                 </Pressable>
                             </View>
 
@@ -346,7 +350,7 @@ export default function TemplateExecutionScreen() {
                     <View style={styles.creditsCost}>
                         <Text style={[styles.costLabel, { color: theme.icon }]}>Cost</Text>
                         <View style={styles.costBadge}>
-                            <Ionicons name="flash" size={14} color="#FF9F0A" />
+                            <Ionicons name="flash" size={14} color={theme.warning} />
                             <Text style={[styles.costValue, { color: theme.text }]}>5</Text>
                         </View>
                     </View>
@@ -358,7 +362,7 @@ export default function TemplateExecutionScreen() {
                         onPress={async () => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-                            if (!isMock) {
+                            if (template.id !== 'default') {
                                 const { error } = await supabase.from('generated_assets').insert({
                                     template_id: template.id,
                                     title: `${template.title} Output`,
@@ -372,8 +376,8 @@ export default function TemplateExecutionScreen() {
                             setTimeout(() => { router.back(); }, 1500);
                         }}
                     >
-                        <Ionicons name="color-wand" size={20} color="#fff" />
-                        <Text style={styles.createBtnText}>Generate Asset</Text>
+                        <Ionicons name="color-wand" size={20} color={theme.background} />
+                        <Text style={[styles.createBtnText, { color: theme.background }]}>Generate Asset</Text>
                     </AnimatedPressable>
                 </Animated.View>
 
@@ -385,10 +389,10 @@ export default function TemplateExecutionScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1 },
     scrollContent: {},
-    heroSection: { borderBottomWidth: 1, borderBottomColor: 'rgba(150,150,150,0.1)' },
+    heroSection: { borderBottomWidth: 1 },
     closeButton: { position: 'absolute', top: 50, right: 20, zIndex: 10, },
     videoPlaceholder: { width: '100%', height: height * 0.35, justifyContent: 'center', alignItems: 'center' },
-    videoMockText: { color: '#ffffff88', marginTop: 12, fontSize: 13, fontWeight: '600', textTransform: 'uppercase' },
+    videoMockText: { marginTop: 12, fontSize: 13, fontWeight: '600', textTransform: 'uppercase' },
     heroDetails: { padding: 24, paddingVertical: 20 },
     heroCategory: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 },
     heroTitle: { fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
@@ -418,7 +422,7 @@ const styles = StyleSheet.create({
     previewChangeBtnText: { fontSize: 13, fontWeight: '700' },
     previewBadge: { position: 'absolute', top: 10, right: 10, width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
 
-    sheetOverlay: { flex: 1, backgroundColor: '#00000066', justifyContent: 'flex-end' },
+    sheetOverlay: { flex: 1, justifyContent: 'flex-end' },
     sheetContainer: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40 },
     sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
     sheetTitle: { fontSize: 18, fontWeight: '800', marginBottom: 20 },
@@ -437,7 +441,7 @@ const styles = StyleSheet.create({
     prefDesc: { fontSize: 13, fontWeight: '500', lineHeight: 18 },
 
     toggle: { width: 50, height: 30, borderRadius: 15, borderWidth: 1, justifyContent: 'center' },
-    knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', position: 'absolute' },
+    knob: { width: 24, height: 24, borderRadius: 12, position: 'absolute' },
 
     segmentedControl: { flexDirection: 'row', padding: 4, borderRadius: 16, borderWidth: 1 },
     segment: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
@@ -449,5 +453,5 @@ const styles = StyleSheet.create({
     costBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     costValue: { fontSize: 18, fontWeight: '800' },
     createBtn: { flex: 1, flexDirection: 'row', height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', gap: 8 },
-    createBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' }
+    createBtnText: { fontSize: 16, fontWeight: '700' }
 });

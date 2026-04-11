@@ -38,7 +38,8 @@ export async function identifyUser(userId: string) {
 }
 
 // ─── Check if user has Pro entitlement ───────────────────────────────────────
-export function hasPro(customerInfo: CustomerInfo | null): boolean {
+export function hasPro(customerInfo: CustomerInfo | null, devBypass: boolean = false): boolean {
+  if (__DEV__ && devBypass) return true;
   if (!customerInfo) return false;
   return typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== 'undefined';
 }

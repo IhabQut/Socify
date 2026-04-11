@@ -20,8 +20,21 @@ export const Colors = {
     tabIconSelected: tintColorLight,
     primary: '#000000',
     secondary: '#555555',
-    accent: '#0A7EA4',
+    accent: '#2866C9',
     border: '#EAEAEA',
+    success: '#34C759',
+    warning: '#FF9F0A',
+    danger: '#FF3B30',
+    overlay: 'rgba(0,0,0,0.4)',
+    white: '#FFFFFF',
+    black: '#000000',
+    // Tool Identities
+    indigo: '#5E5CE6',
+    pink: '#FF375F',
+    sky: '#32ADE6',
+    orange: '#FF9F0A',
+    green: '#34C759',
+    rose: '#E1306C',
   },
   dark: {
     text: '#ECEDEE',
@@ -34,8 +47,21 @@ export const Colors = {
     tabIconSelected: tintColorDark,
     primary: '#FFFFFF',
     secondary: '#A0A0A0',
-    accent: '#5E5CE6', // Soft Indigo for creativity apps
+    accent: '#2B8AE6', // Soft Indigo for creativity apps
     border: '#333333',
+    success: '#34C759',
+    warning: '#FF9F0A',
+    danger: '#FF3B30',
+    overlay: 'rgba(0,0,0,0.6)',
+    white: '#FFFFFF',
+    black: '#000000',
+    // Tool Identities
+    indigo: '#5E5CE6',
+    pink: '#FF375F',
+    sky: '#32ADE6',
+    orange: '#FF9F0A',
+    green: '#34C759',
+    rose: '#E1306C',
   },
 };
 

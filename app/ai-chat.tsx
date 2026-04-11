@@ -276,7 +276,7 @@ export default function AiChatScreen() {
               <Text style={[styles.headerTitle, { color: theme.text }]}>Socify AI</Text>
             </View>
             <View style={styles.statusDotRow}>
-              <View style={[styles.statusDot, { backgroundColor: isGenerating ? '#FF9F0A' : '#34C759' }]} />
+              <View style={[styles.statusDot, { backgroundColor: isGenerating ? theme.warning : theme.success }]} />
               <Text style={[styles.statusText, { color: theme.icon }]}>
                 {isGenerating ? 'Thinking...' : 'Online'}
               </Text>
@@ -367,9 +367,9 @@ export default function AiChatScreen() {
                     <Image source={{ uri: msg.imageUri }} style={styles.bubbleAttachedImage} />
                   </View>
                 ) : null}
-                {msg.text ? <Text style={[styles.messageText, { color: isUser ? '#fff' : theme.text }]} selectable>{msg.text}</Text> : null}
+                {msg.text ? <Text style={[styles.messageText, { color: isUser ? theme.background : theme.text }]} selectable>{msg.text}</Text> : null}
                 {msg.timestamp ? (
-                  <Text style={[styles.timestamp, { color: isUser ? '#ffffff88' : theme.icon }]}>{formatTime(msg.timestamp)}</Text>
+                  <Text style={[styles.timestamp, { color: isUser ? theme.background + '88' : theme.icon }]}>{formatTime(msg.timestamp)}</Text>
                 ) : null}
               </Animated.View>
             );
@@ -398,7 +398,7 @@ export default function AiChatScreen() {
               <View style={[styles.inlineImageWrapper, { borderColor: theme.accent, borderWidth: 2 }]}>
                 <Image source={{ uri: selectedImage }} style={styles.inlineImage} />
                 <Pressable style={[styles.removeImageBtn, { backgroundColor: theme.background }]} onPress={() => setSelectedImage(null)}>
-                  <Ionicons name="close-circle" size={22} color="#FF3B30" />
+                  <Ionicons name="close-circle" size={22} color={theme.danger} />
                 </Pressable>
               </View>
             </Animated.View>
@@ -434,9 +434,9 @@ export default function AiChatScreen() {
               disabled={(!input.trim() && !selectedImage) || isGenerating}
             >
               {isGenerating ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={theme.background} />
               ) : (
-                <Ionicons name="arrow-up" size={18} color="#fff" />
+                <Ionicons name="arrow-up" size={18} color={theme.background} />
               )}
             </Pressable>
           </View>

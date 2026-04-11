@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, Pressable, FlatList, Dimensions, ActivityIndicator, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInUp, useSharedValue, useAnimatedStyle, withSpring, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeInUp, useSharedValue, useAnimatedStyle, withSpring, FadeIn, withRepeat, withTiming } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,8 @@ import * as Haptics from 'expo-haptics';
 import { supabase } from '@/lib/supabase';
 import { usePurchases } from '@/hooks/use-purchases';
 import { ENTITLEMENT_ID } from '@/lib/purchases';
+import { StorageService } from '@/services/storageService';
+import { Alert, Image } from 'react-native';
 
 const { width } = Dimensions.get('window');
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -38,11 +40,11 @@ const TemplateCard = ({ template, theme }: any) => {
         <View style={styles.badgeContainer}>
           {isPremium && (
             <View style={[styles.badge, { backgroundColor: theme.accent }]}>
-              <Text style={styles.badgeText}>PRO</Text>
+              <Text style={[styles.badgeText, { color: theme.background }]}>PRO</Text>
             </View>
           )}
           {isNew && (
-            <View style={[styles.badge, { backgroundColor: '#34C759' }]}>
+            <View style={[styles.badge, { backgroundColor: theme.success }]}>
               <Text style={styles.badgeText}>NEW</Text>
             </View>
           )}
@@ -78,13 +80,67 @@ export default function CreativeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
+
+  // Logo Animation
+  const logoPulse = useSharedValue(0);
+  useEffect(() => {
+    logoPulse.value = withRepeat(
+      withTiming(1, { duration: 2500, easing: withSpring(1) }),
+      -1,
+      true
+    );
+  }, []);
+
+  const animatedLogoStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + logoPulse.value * 0.08 }, { rotate: `${logoPulse.value * 5}deg` }],
+  }));
 
   // Credits logic
   const credits = isPro ? '∞' : '150';
 
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Execute database search
+  useEffect(() => {
+    if (debouncedSearch.trim().length > 0) {
+      performSearch();
+    } else {
+      setSearchResults([]);
+      setIsSearching(false);
+    }
+  }, [debouncedSearch]);
+
+  async function performSearch() {
+    setIsSearching(true);
+    try {
+      const { data, error: searchErr } = await supabase
+        .from('templates')
+        .select('*')
+        .ilike('title', `%${debouncedSearch}%`)
+        .limit(20);
+      
+      if (searchErr) throw searchErr;
+      setSearchResults(data || []);
+    } catch (e) {
+      console.error("Search failed", e);
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [retryCount]);
 
   async function fetchData() {
     setLoading(true);
@@ -126,12 +182,44 @@ export default function CreativeScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* App Header */}
       <View style={styles.appHeader}>
-        <Text style={[styles.appName, { color: theme.text }]}>Socify</Text>
+        <View style={styles.headerLeft}>
+          <Animated.View style={animatedLogoStyle}>
+            <Image 
+              source={require('@/assets/images/logo.png')} 
+              style={{ width: 32, height: 32 }} 
+              resizeMode="contain" 
+            />
+          </Animated.View>
+          <Pressable 
+            onPress={async () => {
+              if (!__DEV__) return;
+              const current = await StorageService.getDevProBypass();
+              await StorageService.setDevProBypass(!current);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              Alert.alert("Dev Mode", `Pro status ${!current ? 'ACTIVATED' : 'REMOVED'}. Please restart the app.`);
+            }}
+            delayLongPress={2000}
+          >
+            <Text style={[styles.appName, { color: theme.text }]}>Socify</Text>
+          </Pressable>
+          {__DEV__ && isPro && (
+            <Pressable 
+              onPress={async () => {
+                await StorageService.setDevProBypass(false);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                Alert.alert("Dev Mode", "Pro status REMOVED. Please restart the app.");
+              }}
+              style={[styles.removeProBtn, { borderColor: theme.accent }]}
+            >
+              <Text style={[styles.removeProText, { color: theme.accent }]}>Remove Pro</Text>
+            </Pressable>
+          )}
+        </View>
         <Pressable 
           onPress={() => router.push('/paywall')}
           style={[styles.creditsPill, { backgroundColor: theme.card, borderColor: isPro ? theme.accent : theme.border }]}
         >
-          <Ionicons name={isPro ? "star" : "flash"} size={14} color={isPro ? theme.accent : "#FF9F0A"} />
+          <Ionicons name={isPro ? "star" : "flash"} size={14} color={isPro ? theme.accent : theme.warning} />
           <Text style={[styles.creditsText, { color: theme.text }]}>{credits}</Text>
         </Pressable>
       </View>
@@ -157,26 +245,60 @@ export default function CreativeScreen() {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {/* Banner */}
+        {/* Banner Section */}
         {!search && (
-          <Animated.View entering={FadeInUp.delay(100).duration(800)} style={styles.bannerWrapper}>
-            <View style={[styles.bannerCard, { backgroundColor: theme.accent }]}>
-              <View style={styles.bannerBadge}>
-                <Text style={[styles.bannerBadgeText, { color: theme.accent }]}>Today's Hot 🔥</Text>
+          <View style={styles.bannerWrapper}>
+            <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.bannerCard}>
+              <Image source={{ uri: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1000' }} style={StyleSheet.absoluteFillObject} borderRadius={24} />
+              <View style={[styles.bannerBadge, { backgroundColor: theme.overlay }]}>
+                <Text style={[styles.bannerBadgeText, { color: theme.white }]}>Trending Now</Text>
               </View>
-              <Text style={styles.bannerTitle}>Autumn Collection Campaign</Text>
-              <Text style={styles.bannerSubtitle}>Generate high-converting assets instantly.</Text>
-            </View>
-          </Animated.View>
+              <Text style={[styles.bannerTitle, { color: theme.background }]}>Visual Storytelling 2026</Text>
+              <Text style={[styles.bannerSubtitle, { color: theme.background }]}>AI-driven aesthetics for modern creators</Text>
+            </Animated.View>
+          </View>
         )}
 
         {error ? (
           <Animated.View entering={FadeIn} style={styles.errorState}>
             <Ionicons name="wifi-outline" size={40} color={theme.icon} />
             <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
-            <Pressable style={[styles.retryBtn, { backgroundColor: theme.primary }]} onPress={fetchData}>
-              <Text style={styles.retryBtnText}>Try Again</Text>
+            <Pressable
+              style={[styles.retryBtn, { backgroundColor: theme.primary }]}
+              onPress={() => setRetryCount(c => c + 1)}
+            >
+              <Text style={[styles.retryBtnText, { color: theme.background }]}>Retry Connection</Text>
             </Pressable>
+          </Animated.View>
+        ) : search.length > 0 ? (
+          // Search Results View
+          <Animated.View entering={FadeIn.duration(400)} style={styles.searchResultsContainer}>
+            <View style={styles.categoryHeader}>
+              <Text style={[styles.categoryTitle, { color: theme.text }]}>
+                {isSearching ? 'Searching...' : `Found ${searchResults.length} results`}
+              </Text>
+            </View>
+            
+            {isSearching ? (
+              <View style={styles.searchLoading}>
+                <ActivityIndicator size="large" color={theme.accent} />
+              </View>
+            ) : searchResults.length > 0 ? (
+              <View style={styles.searchGrid}>
+                {searchResults.map((item) => (
+                  <View key={item.id} style={styles.gridCardWrapper}>
+                    <TemplateCard template={item} theme={theme} />
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptySearch}>
+                <Ionicons name="search-outline" size={40} color={theme.icon} />
+                <Text style={[styles.emptySearchText, { color: theme.icon }]}>
+                  No templates found for "{search}"
+                </Text>
+              </View>
+            )}
           </Animated.View>
         ) : loading ? (
           // Skeleton Loading State
@@ -250,7 +372,12 @@ export default function CreativeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   appHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   appName: { fontSize: 26, fontWeight: '900', letterSpacing: -1 },
+  removeProBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', marginLeft: 4 },
+  removeProText: { fontSize: 10, fontWeight: '800' },
+  devToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed' },
+  devToggleText: { fontSize: 10, fontWeight: '800' },
   creditsPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, gap: 4 },
   creditsText: { fontSize: 14, fontWeight: '700' },
   searchContainer: { paddingHorizontal: 24, marginBottom: 24 },
@@ -259,10 +386,10 @@ const styles = StyleSheet.create({
   scrollContent: { paddingVertical: 16, paddingBottom: 100 },
   bannerWrapper: { paddingHorizontal: 24, marginBottom: 32 },
   bannerCard: { padding: 24, borderRadius: 24, minHeight: 180, justifyContent: 'flex-end' },
-  bannerBadge: { position: 'absolute', top: 20, left: 20, backgroundColor: '#ffffffdd', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  bannerBadge: { position: 'absolute', top: 20, left: 20, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   bannerBadgeText: { fontSize: 13, fontWeight: '800' },
-  bannerTitle: { fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 6 },
-  bannerSubtitle: { fontSize: 14, fontWeight: '500', color: '#fff', opacity: 0.9 },
+  bannerTitle: { fontSize: 24, fontWeight: '800', marginBottom: 6 },
+  bannerSubtitle: { fontSize: 14, fontWeight: '500', opacity: 0.9 },
   categorySection: { marginBottom: 32 },
   categoryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, marginBottom: 16 },
   categoryTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -275,14 +402,20 @@ const styles = StyleSheet.create({
   card: { borderRadius: 20, borderWidth: 1, overflow: 'hidden', width: '100%' },
   imagePlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   badgeContainer: { position: 'absolute', top: 12, left: 12, flexDirection: 'row', gap: 6 },
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '900' },
+  badge: { position: 'absolute', top: 10, right: 10, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  badgeText: { fontSize: 10, fontWeight: '900' },
   cardInfo: { padding: 12 },
   cardTitle: { fontSize: 14, fontWeight: '700' },
   cardSub: { fontSize: 12, fontWeight: '500', marginTop: 2 },
   skeletonLine: { height: 14, borderRadius: 7 },
   errorState: { alignItems: 'center', paddingVertical: 40, gap: 12 },
   errorText: { fontSize: 15, fontWeight: '500', textAlign: 'center', paddingHorizontal: 40 },
-  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20 },
-  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20, marginTop: 8 },
+  retryBtnText: { fontWeight: '700', fontSize: 14 },
+  searchResultsContainer: { flex: 1 },
+  searchGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 16 },
+  gridCardWrapper: { width: width * 0.44 },
+  searchLoading: { paddingVertical: 40, alignItems: 'center' },
+  emptySearch: { alignItems: 'center', paddingVertical: 60, gap: 12 },
+  emptySearchText: { fontSize: 15, fontWeight: '500' },
 });

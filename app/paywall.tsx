@@ -1,15 +1,18 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, Pressable, ScrollView, Image, ActivityIndicator, Alert, Dimensions, Platform } from 'react-native';
-import { router, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeInUp, ZoomIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, Easing } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import Purchases, { PurchasesPackage, PurchasesOffering } from 'react-native-purchases';
+import { router, Stack } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Dimensions, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import Purchases, { PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
+import Animated, { Easing, FadeIn, FadeInUp, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ENTITLEMENT_ID } from '@/lib/purchases';
+import { StorageService } from '@/services/storageService';
+import { NotificationService } from '@/services/notificationService';
+import { usePurchases } from '@/hooks/use-purchases';
 
 const { width, height } = Dimensions.get('window');
 
@@ -28,19 +31,44 @@ export default function PaywallScreen() {
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<PurchasesPackage | null>(null);
+  const { isPro } = usePurchases();
 
   // Animation assets
-  const pulse = useSharedValue(1);
+  const scale = useSharedValue(1);
+  const borderPulse = useSharedValue(0);
+  const packageBorderPulse = useSharedValue(0);
+  const logoFloat = useSharedValue(0);
 
   useEffect(() => {
     fetchOfferings();
     
-    // Pulse animation for the primary CTA
-    pulse.value = withRepeat(
+    // Scale pulse for the primary CTA
+    scale.value = withRepeat(
       withSequence(
-        withTiming(1.04, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1.02, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
         withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
       ),
+      -1,
+      true
+    );
+
+    // Border glow pulse
+    borderPulse.value = withRepeat(
+      withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+
+    // Package card border pulse
+    packageBorderPulse.value = withRepeat(
+      withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+
+    // Continuous logo floating animation
+    logoFloat.value = withRepeat(
+      withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
@@ -109,14 +137,42 @@ export default function PaywallScreen() {
 
   const animatedButtonStyle = useAnimatedStyle(() => {
     return {
-      transform: [{ scale: pulse.value }],
+      transform: [{ scale: scale.value }],
+    };
+  });
+
+  const animatedPackageBorderStyle = useAnimatedStyle(() => {
+    return {
+      opacity: packageBorderPulse.value,
+      borderWidth: 2,
+      borderColor: theme.accent,
+      borderRadius: 16,
+    };
+  });
+
+  const animatedOuterBorderStyle = useAnimatedStyle(() => {
+    return {
+      opacity: borderPulse.value,
+      transform: [{ scale: 1 + borderPulse.value * 0.05 }],
+      borderColor: theme.accent,
+      borderWidth: 2,
+    };
+  });
+  
+  const animatedLogoStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateY: -8 * logoFloat.value },
+        { rotate: `${-3 + logoFloat.value * 6}deg` },
+        { scale: 1 + logoFloat.value * 0.05 }
+      ],
     };
   });
 
   if (isLoading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.accent} />
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -140,11 +196,13 @@ export default function PaywallScreen() {
         {/* Header - Compact */}
         <View style={styles.header}>
           <Animated.View entering={ZoomIn.duration(600)}>
-            <Image 
-              source={require('@/assets/images/logo.png')} 
-              style={styles.logo} 
-              resizeMode="contain" 
-            />
+            <Animated.View style={animatedLogoStyle}>
+              <Image 
+                source={require('@/assets/images/logo.png')} 
+                style={styles.logo} 
+                resizeMode="contain" 
+              />
+            </Animated.View>
           </Animated.View>
           <Text style={[styles.title, { color: theme.text }]}>Socify Pro</Text>
           <Text style={[styles.subtitle, { color: theme.icon }]}>
@@ -160,7 +218,7 @@ export default function PaywallScreen() {
               entering={FadeInUp.delay(300 + index * 100).duration(400)}
               style={styles.featureRow}
             >
-              <Ionicons name="checkmark-circle" size={18} color={theme.accent} />
+              <Ionicons name="checkmark-circle" size={18} color={theme.primary} />
               <Text style={[styles.featureText, { color: theme.text }]}>{feature.text}</Text>
             </Animated.View>
           ))}
@@ -184,17 +242,36 @@ export default function PaywallScreen() {
                     styles.packageCard,
                     { 
                       backgroundColor: theme.card, 
-                      borderColor: isSelected ? theme.accent : theme.border,
+                      borderColor: isSelected ? theme.primary : theme.border,
                       borderWidth: isSelected ? 2 : 1
                     }
                   ]}
                 >
+                  {/* Animated Border for Selection */}
+                  {isSelected && (
+                    <Animated.View 
+                      style={[
+                        StyleSheet.absoluteFill, 
+                        animatedPackageBorderStyle,
+                        { margin: -2 } // Offset the border to overlap
+                      ]} 
+                    />
+                  )}
+
+                  {/* Credit Badge on the border */}
+                  <View style={[styles.creditBadge, { backgroundColor: theme.warning, borderColor: theme.background }]}>
+                    <Ionicons name="flash" size={10} color={theme.background} />
+                    <Text style={[styles.creditBadgeText, { color: theme.background }]}>
+                      {isYearly ? "1,500" : "100"}
+                    </Text>
+                  </View>
+
                   <View style={styles.packageInfo}>
                     <Text style={[styles.packageTitle, { color: theme.text }]}>
                       {isYearly ? "Annual Plan" : "Monthly Plan"}
                     </Text>
                     {isYearly && (
-                      <Text style={[styles.trialLabel, { color: theme.accent }]}>
+                      <Text style={[styles.trialLabel, { color: theme.text, opacity: 0.8 }]}>
                         Includes 3-Day Free Trial
                       </Text>
                     )}
@@ -211,8 +288,8 @@ export default function PaywallScreen() {
                   </View>
 
                   {isSelected && (
-                    <View style={[styles.checkIndicator, { backgroundColor: theme.accent }]}>
-                      <Ionicons name="checkmark" size={10} color="#fff" />
+                    <View style={[styles.checkIndicator, { backgroundColor: theme.primary }]}>
+                      <Ionicons name="checkmark" size={10} color={theme.background} />
                     </View>
                   )}
                 </Pressable>
@@ -224,18 +301,26 @@ export default function PaywallScreen() {
         {/* Action Button */}
         <View style={styles.actionSection}>
           <Animated.View style={animatedButtonStyle}>
+            {/* Animated Glow/Border Background */}
+            <Animated.View 
+              style={[
+                styles.buttonGlow, 
+                animatedOuterBorderStyle
+              ]} 
+            />
+            
             <Pressable 
               onPress={handlePurchase}
               disabled={!selectedPackage || isPurchasing}
               style={[
                 styles.purchaseBtn,
-                { backgroundColor: theme.accent, opacity: isPurchasing ? 0.7 : 1 }
+                { backgroundColor: theme.primary, opacity: isPurchasing ? 0.7 : 1 }
               ]}
             >
               {isPurchasing ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={theme.background} />
               ) : (
-                <Text style={styles.purchaseBtnText}>Start Subscription</Text>
+                <Text style={[styles.purchaseBtnText, { color: theme.background }]}>Start Subscription</Text>
               )}
             </Pressable>
           </Animated.View>
@@ -249,6 +334,34 @@ export default function PaywallScreen() {
               <Text style={[styles.footerLink, { color: theme.icon }]}>Terms & Privacy</Text>
             </Pressable>
           </View>
+
+          {__DEV__ && (
+            <View style={styles.devRow}>
+              <Pressable 
+                onPress={async () => {
+                  const current = await StorageService.getDevProBypass();
+                  await StorageService.setDevProBypass(!current);
+                  Alert.alert("Dev Mode", `Subscription bypass ${!current ? 'ENABLED' : 'DISABLED'}. Please restart the app.`);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                }}
+                style={[styles.devBypassBtn, { borderColor: theme.accent }]}
+              >
+                <Text style={[styles.devBypassText, { color: theme.accent }]}>
+                  {isPro ? 'Dev: Remove Pro' : 'Dev: Activate Pro'}
+                </Text>
+              </Pressable>
+
+              <Pressable 
+                onPress={async () => {
+                  await NotificationService.sendTestNotification();
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }}
+                style={[styles.devBypassBtn, { borderColor: theme.success }]}
+              >
+                <Text style={[styles.devBypassText, { color: theme.success }]}>Dev: Test Notif</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
 
       </View>
@@ -284,9 +397,17 @@ const styles = StyleSheet.create({
   
   checkIndicator: { position: 'absolute', top: -8, left: 12, width: 16, height: 16, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
 
-  actionSection: { marginTop: 'auto', gap: 16 },
+  actionSection: { marginTop: 'auto', gap: 16, paddingBottom: 20 },
   purchaseBtn: { width: '100%', height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  purchaseBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  buttonGlow: { position: 'absolute', top: -4, left: -4, right: -4, bottom: -4, borderRadius: 32, borderWidth: 2 },
+  purchaseBtnText: { fontSize: 16, fontWeight: '700' },
+
+  creditBadge: { position: 'absolute', top: -10, right: 16, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 2, zIndex: 10 },
+  creditBadgeText: { fontSize: 11, fontWeight: '900' },
+
+  devBypassBtn: { alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed' },
+  devBypassText: { fontSize: 12, fontWeight: '700' },
+  devRow: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 12 },
 
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   footerLink: { fontSize: 12, fontWeight: '500' },

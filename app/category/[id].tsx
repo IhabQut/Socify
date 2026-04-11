@@ -10,7 +10,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/lib/supabase';
 import { usePurchases } from '@/hooks/use-purchases';
 import { ENTITLEMENT_ID } from '@/lib/purchases';
-import { TextInput } from 'react-native';
 
 const { width } = Dimensions.get('window');
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -42,7 +41,7 @@ const TemplateCard = ({ template, theme, index }: any) => {
           <Ionicons name={isLocked ? "lock-closed" : "color-wand-outline"} size={28} color={isLocked ? theme.accent : theme.icon} />
           {isPremium && (
             <View style={[styles.badge, { backgroundColor: theme.accent }]}>
-              <Text style={styles.badgeText}>PRO</Text>
+              <Text style={[styles.badgeText, { color: theme.background }]}>PRO</Text>
             </View>
           )}
         </View>
@@ -65,11 +64,6 @@ export default function CategoryScreen() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-
-  const filteredTemplates = templates.filter(t => 
-    t.title.toLowerCase().includes(search.toLowerCase())
-  );
 
   useEffect(() => {
     async function fetchTemplates() {
@@ -113,19 +107,6 @@ export default function CategoryScreen() {
       {/* Category Color Bar */}
       <View style={[styles.colorBar, { backgroundColor: (color as string) || theme.accent }]} />
 
-      {/* Search Bar */}
-      <View style={styles.searchBox}>
-        <View style={[styles.searchInner, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Ionicons name="search" size={16} color={theme.icon} />
-          <TextInput 
-            style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Search within category..."
-            placeholderTextColor={theme.icon}
-            value={search}
-            onChangeText={setSearch}
-          />
-        </View>
-      </View>
 
       {/* Content */}
       {loading ? (
@@ -135,13 +116,13 @@ export default function CategoryScreen() {
         </View>
       ) : error ? (
         <View style={styles.errorState}>
-          <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
+          <Ionicons name="alert-circle-outline" size={48} color={theme.danger} />
           <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
           <Pressable
             style={[styles.retryBtn, { backgroundColor: theme.primary }]}
             onPress={() => setLoading(true)}
           >
-            <Text style={styles.retryText}>Retry</Text>
+            <Text style={[styles.retryText, { color: theme.background }]}>Retry</Text>
           </Pressable>
         </View>
       ) : templates.length === 0 ? (
@@ -152,7 +133,7 @@ export default function CategoryScreen() {
         </View>
       ) : (
         <FlatList
-          data={filteredTemplates}
+          data={templates}
           keyExtractor={(item) => item.id}
           numColumns={2}
           contentContainerStyle={styles.grid}
@@ -182,7 +163,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
   imageBox: { height: 120, justifyContent: 'center', alignItems: 'center', position: 'relative' },
   badge: { position: 'absolute', top: 10, right: 10, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-  badgeText: { color: '#fff', fontSize: 9, fontWeight: '900' },
+  badgeText: { fontSize: 9, fontWeight: '900' },
   cardInfo: { padding: 14 },
   cardTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
   cardMeta: { fontSize: 12, fontWeight: '500' },
@@ -191,7 +172,7 @@ const styles = StyleSheet.create({
   errorState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, gap: 12 },
   errorText: { fontSize: 15, fontWeight: '500', textAlign: 'center' },
   retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20, marginTop: 8 },
-  retryText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  retryText: { fontWeight: '700', fontSize: 14 },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, gap: 12 },
   emptyTitle: { fontSize: 20, fontWeight: '800' },
   emptyDesc: { fontSize: 14, fontWeight: '500', textAlign: 'center', lineHeight: 22 },

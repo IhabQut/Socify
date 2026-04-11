@@ -6,6 +6,18 @@ import { useEffect } from 'react';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { configurePurchases } from '@/lib/purchases';
+import * as Notifications from 'expo-notifications';
+import { NotificationService } from '@/services/notificationService';
+
+// Configure how notifications are handled when the app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 export const unstable_settings = {
   initialRouteName: 'index',
@@ -16,6 +28,8 @@ export default function RootLayout() {
 
   useEffect(() => {
     configurePurchases();
+    // Request notification permissions on mount
+    NotificationService.requestPermissions();
   }, []);
 
   return (

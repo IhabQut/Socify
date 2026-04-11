@@ -13,37 +13,37 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 // ─── Tool definitions ──────────────────────────────────────────────────────
 const TOOLS = [
   {
-    id: 1, title: 'AI Copywriter', icon: 'create-outline', color: '#5E5CE6',
+    id: 1, title: 'AI Copywriter', icon: 'create-outline', color: Colors.dark.indigo,
     desc: 'Generate high-converting ad copy, captions, and CTAs instantly.',
     placeholder: 'Describe your product or campaign goal...',
     outputPrefix: '✍️ Here\'s your copy:\n\n',
   },
   {
-    id: 2, title: 'Image Enhancer', icon: 'color-wand-outline', color: '#FF375F',
+    id: 2, title: 'Image Enhancer', icon: 'color-wand-outline', color: Colors.dark.pink,
     desc: 'Upscale, sharpen, and colour-correct your images using AI.',
     placeholder: 'Describe the image and desired enhancement...',
     outputPrefix: '🎨 Enhancement applied:\n\n',
   },
   {
-    id: 3, title: 'Background Remover', icon: 'cut-outline', color: '#32ADE6',
+    id: 3, title: 'Background Remover', icon: 'cut-outline', color: Colors.dark.sky,
     desc: 'Remove or swap backgrounds from product photos with one tap.',
     placeholder: 'Describe your subject and desired background...',
     outputPrefix: '✂️ Background removed! Result:\n\n',
   },
   {
-    id: 4, title: 'Hashtag Generator', icon: 'hash-outline', color: '#FF9F0A',
+    id: 4, title: 'Hashtag Generator', icon: 'grid-outline', color: Colors.dark.orange,
     desc: 'Generate trending, niche-targeted hashtags for any platform.',
     placeholder: 'Describe your post or brand niche...',
     outputPrefix: '# Top hashtags for you:\n\n',
   },
   {
-    id: 5, title: 'Caption Writer', icon: 'chatbubble-outline', color: '#34C759',
+    id: 5, title: 'Caption Writer', icon: 'chatbubble-outline', color: Colors.dark.green,
     desc: 'Write engaging captions optimised for Instagram, TikTok, and more.',
     placeholder: 'What\'s the post about? Tone: casual, formal, funny?',
     outputPrefix: '💬 Caption ready:\n\n',
   },
   {
-    id: 6, title: 'SEO Optimizer', icon: 'trending-up-outline', color: '#E1306C',
+    id: 6, title: 'SEO Optimizer', icon: 'trending-up-outline', color: Colors.dark.rose,
     desc: 'Craft SEO-rich titles, meta descriptions, and page content.',
     placeholder: 'Enter your page topic or keywords...',
     outputPrefix: '📈 SEO-optimised content:\n\n',
@@ -131,11 +131,11 @@ const ToolModal = ({ tool, visible, onClose, theme }: any) => {
               disabled={!input.trim() || loading}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={theme.background} />
               ) : (
                 <>
-                  <Ionicons name="sparkles" size={18} color="#fff" />
-                  <Text style={styles.generateBtnText}>Generate</Text>
+                  <Ionicons name="sparkles" size={18} color={theme.background} />
+                  <Text style={[styles.generateBtnText, { color: theme.background }]}>Generate</Text>
                 </>
               )}
             </Pressable>
@@ -244,21 +244,21 @@ export default function ToolsScreen() {
         {/* Hero Tool: AI Chat */}
         <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.heroSection}>
           <AnimatedPressable
-            style={[styles.heroCard, heroStyle, { backgroundColor: theme.accent ?? '#5E5CE6' }]}
+            style={[styles.heroCard, heroStyle, { backgroundColor: theme.accent }]}
             onPressIn={() => { scaleHero.value = withSpring(0.96); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
             onPressOut={() => scaleHero.value = withSpring(1)}
             onPress={() => router.push('/ai-chat')}
           >
             <View style={styles.heroHeaderRow}>
-              <Ionicons name="sparkles" size={32} color="#fff" />
-              <View style={styles.heroBadge}>
-                <Text style={[styles.heroBadgeText, { color: theme.accent ?? '#5E5CE6' }]}>Generative AI</Text>
+              <Ionicons name="sparkles" size={32} color={theme.background} />
+              <View style={[styles.heroBadge, { backgroundColor: theme.background }]}>
+                <Text style={[styles.heroBadgeText, { color: theme.accent }]}>Generative AI</Text>
               </View>
             </View>
-            <Text style={styles.heroTitle}>Imagine it. Create it.</Text>
-            <Text style={styles.heroSubtitle}>Describe your imagination to create brand assets from scratch.</Text>
+            <Text style={[styles.heroTitle, { color: theme.background }]}>Imagine it. Create it.</Text>
+            <Text style={[styles.heroSubtitle, { color: theme.background + 'cc' }]}>Describe your imagination to create brand assets from scratch.</Text>
             <View style={styles.heroFooter}>
-              <Ionicons name="arrow-forward-circle" size={28} color="#ffffffcc" />
+              <Ionicons name="arrow-forward-circle" size={28} color={theme.background + 'cc'} />
             </View>
           </AnimatedPressable>
         </Animated.View>
@@ -292,10 +292,10 @@ const styles = StyleSheet.create({
   heroSection: { marginBottom: 24 },
   heroCard: { padding: 24, borderRadius: 28, minHeight: 200, justifyContent: 'space-between' },
   heroHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  heroBadge: { backgroundColor: '#ffffffff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  heroBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   heroBadgeText: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase' },
-  heroTitle: { fontSize: 28, fontWeight: '800', marginBottom: 8, letterSpacing: -0.5, color: '#fff' },
-  heroSubtitle: { fontSize: 15, fontWeight: '500', lineHeight: 22, color: '#ffffffcc' },
+  heroTitle: { fontSize: 28, fontWeight: '800', marginBottom: 8, letterSpacing: -0.5 },
+  heroSubtitle: { fontSize: 15, fontWeight: '500', lineHeight: 22 },
   heroFooter: { alignItems: 'flex-end', marginTop: 16 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   gridItem: { width: '47%' },
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
   inputLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   modalInput: { minHeight: 120, padding: 16, borderRadius: 20, borderWidth: 1, fontSize: 15, fontWeight: '500', lineHeight: 22 },
   generateBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 56, borderRadius: 28, gap: 10 },
-  generateBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  generateBtnText: { fontSize: 16, fontWeight: '700' },
   outputCard: { borderRadius: 20, borderWidth: 1, padding: 20 },
   outputHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   outputLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },

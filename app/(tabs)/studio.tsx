@@ -33,18 +33,18 @@ const ExpandableSettingsRow = ({ icon, title, description, children, theme, isDa
         onPressOut={() => scale.value = withSpring(1)}
         onPress={handlePress}
       >
-        <View style={[styles.iconCircle, { backgroundColor: isDanger ? '#FF3B3015' : theme.border }]}>
-          <Ionicons name={icon} size={20} color={isDanger ? '#FF3B30' : theme.text} />
+        <View style={[styles.iconCircle, { backgroundColor: isDanger ? theme.danger + '15' : theme.border }]}>
+          <Ionicons name={icon} size={20} color={isDanger ? theme.danger : theme.text} />
         </View>
         <View style={styles.settingsRowText}>
-          <Text style={[styles.settingsRowTitle, { color: isDanger ? '#FF3B30' : theme.text }]}>{title}</Text>
+          <Text style={[styles.settingsRowTitle, { color: isDanger ? theme.danger : theme.text }]}>{title}</Text>
           {description && !expanded && <Text style={[styles.settingsRowDesc, { color: theme.icon }]} numberOfLines={1}>{description}</Text>}
         </View>
         <Ionicons name={expanded ? "chevron-down" : "chevron-forward"} size={18} color={theme.icon} />
       </AnimatedPressable>
 
       {expanded && (
-        <Animated.View entering={FadeInUp.duration(300)} style={styles.expandedContent}>
+        <Animated.View entering={FadeInUp.duration(300)} style={[styles.expandedContent, { borderTopColor: theme.border }]}>
           {children}
         </Animated.View>
       )}
@@ -141,8 +141,8 @@ export default function StudioScreen() {
         <Animated.View entering={FadeInUp.delay(100).duration(800)} style={styles.profileHeader}>
           <Pressable style={[styles.avatarPlaceholder, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 2 }]}>
             <Ionicons name={avatarId as any} size={42} color={theme.accent} />
-            <View style={[styles.editAvatarBadge, { backgroundColor: theme.accent }]}>
-              <Ionicons name="camera" size={12} color="#fff" />
+            <View style={[styles.editAvatarBadge, { backgroundColor: theme.accent, borderColor: theme.background }]}>
+              <Ionicons name="camera" size={12} color={theme.background} />
             </View>
           </Pressable>
           <Text style={[styles.name, { color: theme.text }]}>{alias}</Text>
@@ -155,7 +155,7 @@ export default function StudioScreen() {
         <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.statsRow}>
           <View style={[styles.statBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
             <View style={styles.creditHeader}>
-              <Ionicons name="flash" size={18} color="#FF9F0A" />
+              <Ionicons name="flash" size={18} color={theme.warning} />
               <Text style={[styles.statLabel, { color: theme.icon }]}>Credits</Text>
             </View>
             {subLoading ? (
@@ -166,7 +166,7 @@ export default function StudioScreen() {
           </View>
           
           <AnimatedPressable 
-            style={[styles.subBox, subAnimatedStyle, { backgroundColor: isPro ? '#FF9F0A' : theme.primary }]}
+            style={[styles.subBox, subAnimatedStyle, { backgroundColor: isPro ? theme.warning : theme.primary }]}
             onPressIn={() => { subScale.value = withSpring(0.95); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
             onPressOut={() => subScale.value = withSpring(1)}
             onPress={isPro ? handleCustomerCenter : handleOpenPaywall}
@@ -202,8 +202,8 @@ export default function StudioScreen() {
                   router.push('/(tabs)/');
                 }}
               >
-                <Text style={styles.ctaButtonText}>Start Creating</Text>
-                <Ionicons name="arrow-forward" size={18} color="#fff" />
+                <Text style={[styles.ctaButtonText, { color: theme.background }]}>Start Creating</Text>
+                <Ionicons name="arrow-forward" size={18} color={theme.background} />
               </Pressable>
             </View>
           ) : (
@@ -271,9 +271,9 @@ export default function StudioScreen() {
                   disabled={restoring}
                 >
                   {restoring ? (
-                    <ActivityIndicator color="#fff" size="small" />
+                  <ActivityIndicator color={theme.background} size="small" />
                   ) : (
-                    <Text style={styles.miniBtnText}>Restore via RevenueCat SDK</Text>
+                    <Text style={[styles.miniBtnText, { color: theme.background }]}>Restore via RevenueCat SDK</Text>
                   )}
                 </Pressable>
              </ExpandableSettingsRow>
@@ -281,16 +281,16 @@ export default function StudioScreen() {
              {isPro && (
                <ExpandableSettingsRow icon="people-circle-outline" title="Manage Subscription" description="Cancel, change plan, or get support" theme={theme}>
                  <Pressable
-                   style={[styles.miniButton, { backgroundColor: '#FF9F0A' }]}
+                   style={[styles.miniButton, { backgroundColor: theme.warning }]}
                    onPress={handleCustomerCenter}
                  >
-                   <Text style={styles.miniBtnText}>Open Customer Center</Text>
+                    <Text style={[styles.miniBtnText, { color: theme.background }]}>Open Customer Center</Text>
                  </Pressable>
                </ExpandableSettingsRow>
              )}
 
              <ExpandableSettingsRow icon="trash-outline" title="Delete Account" description="Erase all generation data" isDanger theme={theme}>
-               <Text style={[styles.mockEnvText, { color: '#FF3B30' }]}>This action is irreversible and drops your configuration from the DB securely.</Text>
+               <Text style={[styles.mockEnvText, { color: theme.danger }]}>This action is irreversible and drops your configuration from the DB securely.</Text>
              </ExpandableSettingsRow>
           </View>
         </Animated.View>
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingVertical: 24, paddingBottom: 100 },
   profileHeader: { alignItems: 'center', marginTop: 20, marginBottom: 32 },
   avatarPlaceholder: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  editAvatarBadge: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
+  editAvatarBadge: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
   name: { fontSize: 28, fontWeight: '800', marginBottom: 8 },
   planBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
   planBadgeText: { fontSize: 13, fontWeight: '700' },
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   emptyStateTitle: { fontSize: 18, fontWeight: '700' },
   emptyStateDesc: { fontSize: 14, fontWeight: '500', textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
   ctaButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 24, marginTop: 8 },
-  ctaButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  ctaButtonText: { fontSize: 15, fontWeight: '700' },
   historyList: { paddingHorizontal: 24, gap: 14 },
   historyCard: { width: 160, padding: 12, borderRadius: 20, borderWidth: 1 },
   historyImage: { width: '100%', height: 110, borderRadius: 12, marginBottom: 12, justifyContent: 'center', alignItems: 'center' },
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   settingsRowText: { flex: 1 },
   settingsRowTitle: { fontSize: 16, fontWeight: '600', marginBottom: 2 },
   settingsRowDesc: { fontSize: 13, fontWeight: '500' },
-  expandedContent: { paddingHorizontal: 16, paddingBottom: 20, paddingTop: 4, borderTopWidth: 1, borderTopColor: 'rgba(150,150,150,0.1)' },
+  expandedContent: { paddingHorizontal: 16, paddingBottom: 20, paddingTop: 4, borderTopWidth: 1 },
   
   editorContent: { marginTop: 12 },
   inputGroup: { marginBottom: 12 },
@@ -350,5 +350,5 @@ const styles = StyleSheet.create({
   input: { padding: 14, borderRadius: 16, borderWidth: 1, fontSize: 15, fontWeight: '500' },
   mockEnvText: { fontSize: 14, lineHeight: 22, marginTop: 8 },
   miniButton: { padding: 12, borderRadius: 12, alignItems: 'center', marginTop: 12 },
-  miniBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  miniBtnText: { fontWeight: '700', fontSize: 14 },
 });

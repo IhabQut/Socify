@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Purchases, { CustomerInfo, PurchasesPackage } from 'react-native-purchases';
 import { getCustomerInfo, hasPro, ENTITLEMENT_ID } from '@/lib/purchases';
+import { StorageService } from '@/services/storageService';
 
 interface PurchasesState {
   customerInfo: CustomerInfo | null;
@@ -12,6 +13,7 @@ interface PurchasesState {
 
 export function usePurchases(): PurchasesState {
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
+  const [isDevPro, setIsDevPro] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,6 +22,10 @@ export function usePurchases(): PurchasesState {
     setError(null);
     const info = await getCustomerInfo();
     setCustomerInfo(info);
+    if (__DEV__) {
+      const devBypass = await StorageService.getDevProBypass();
+      setIsDevPro(devBypass);
+    }
     if (!info) setError('Could not load subscription status.');
     setIsLoading(false);
   }, []);
@@ -41,7 +47,7 @@ export function usePurchases(): PurchasesState {
 
   return {
     customerInfo,
-    isPro: hasPro(customerInfo),
+    isPro: hasPro(customerInfo, isDevPro),
     isLoading,
     error,
     refresh,
