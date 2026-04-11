@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, FlatList, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, FlatList, ActivityIndicator, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInUp, FadeIn, useSharedValue, useAnimatedStyle, withSpring, Layout } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
@@ -8,10 +8,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import RevenueCatUI from 'react-native-purchases-ui';
-import { supabase } from '@/lib/supabase';
+import { StorageService } from '@/services/storageService';
+import { useAuth, Profile } from '@/hooks/use-auth';
 import { usePurchases } from '@/hooks/use-purchases';
 import { restorePurchases, ENTITLEMENT_ID } from '@/lib/purchases';
-import { StorageService, UserProfile } from '@/services/storageService';
+import { supabase } from '@/lib/supabase';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -56,32 +57,42 @@ export default function StudioScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
   const { customerInfo, isPro, isLoading: subLoading, refresh: refreshSub } = usePurchases();
+  const { profile, loading: authLoading, isGuest, signOut } = useAuth();
 
   const [alias, setAlias] = useState('Creative');
   const [interest, setInterest] = useState('Marketing Agency');
+  const [goal, setGoal] = useState('Build Portfolio');
+  const [tone, setTone] = useState('Professional');
   const [restoring, setRestoring] = useState(false);
   const [avatarId, setAvatarId] = useState('person');
 
-  // Load persistence
+  // Sync with Supabase Profile
   useEffect(() => {
-    StorageService.loadUserProfile().then(p => {
-      if (p) {
-        setAlias(p.alias);
-        setInterest(p.primaryFocus);
-        if (p.avatarId) setAvatarId(p.avatarId);
-      }
-    });
-  }, []);
+    if (profile) {
+      setAlias(profile.full_name || 'Creative');
+      setInterest(profile.interest_areas?.join(', ') || '');
+      setGoal(profile.primary_goal || 'Build Portfolio');
+      setTone(profile.preferred_tone || 'Professional');
+      if (profile.avatar_url) setAvatarId(profile.avatar_url);
+    }
+  }, [profile]);
 
-  const saveProfile = async (newAlias: string, newInterest: string) => {
-    await StorageService.saveUserProfile({ alias: newAlias, primaryFocus: newInterest, avatarId });
+  const saveProfile = async (updates: Partial<Profile>) => {
+    if (profile) {
+      const { error } = await supabase.from('profiles').update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      }).eq('id', profile.id);
+      
+      if (error) console.error("Error updating profile in Supabase", error);
+    }
   };
 
   const subScale = useSharedValue(1);
   const subAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: subScale.value }] }));
 
-  // --- Get credits from customerInfo (placeholder until auth is wired up)
-  const credits = isPro ? '∞' : '150';
+  // --- Get credits from profile
+  const creditsDisplay = isPro ? '∞' : (profile?.credits ?? '0');
   const planLabel = isPro ? 'Socify Pro ✦' : 'Free Plan';
 
   const handleOpenPaywall = () => {
@@ -146,8 +157,10 @@ export default function StudioScreen() {
             </View>
           </Pressable>
           <Text style={[styles.name, { color: theme.text }]}>{alias}</Text>
-          <View style={[styles.planBadge, { backgroundColor: isPro ? theme.accent + '15' : 'transparent', borderColor: isPro ? theme.accent : theme.border }]}>
-            <Text style={[styles.planBadgeText, { color: isPro ? theme.accent : theme.icon }]}>{planLabel}</Text>
+          <View style={[styles.planBadge, { backgroundColor: isPro ? theme.accent + '15' : (isGuest ? theme.warning + '15' : 'transparent'), borderColor: isPro ? theme.accent : (isGuest ? theme.warning : theme.border) }]}>
+            <Text style={[styles.planBadgeText, { color: isPro ? theme.accent : (isGuest ? theme.warning : theme.icon) }]}>
+              {isGuest ? 'Guest Mode ✦' : planLabel}
+            </Text>
           </View>
         </Animated.View>
 
@@ -161,7 +174,7 @@ export default function StudioScreen() {
             {subLoading ? (
               <ActivityIndicator color={theme.primary} style={{ marginTop: 6 }} />
             ) : (
-              <Text style={[styles.statValue, { color: theme.text }]}>{credits}</Text>
+              <Text style={[styles.statValue, { color: theme.text }]}>{creditsDisplay}</Text>
             )}
           </View>
           
@@ -250,10 +263,33 @@ export default function StudioScreen() {
                       style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
                       value={interest} 
                       onChangeText={(v) => { setInterest(v); saveProfile(alias, v); }} 
+                      onChangeText={(v) => { setInterest(v); saveProfile({ interest_areas: v.split(', ') }); }} 
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Tone</Text>
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
+                      value={tone} 
+                      onChangeText={(v) => { setTone(v); saveProfile({ preferred_tone: v }); }} 
                     />
                   </View>
                 </View>
               </ExpandableSettingsRow>
+
+             <ExpandableSettingsRow icon="link-outline" title="Permanent Account" description="Save progress with Apple or Google" theme={theme}>
+               <Text style={[styles.mockEnvText, { color: theme.text, marginBottom: 16 }]}>Link your guest session to a permanent account to sync your work across all devices.</Text>
+               <View style={styles.socialBtnRow}>
+                 <Pressable style={[styles.socialBtn, { backgroundColor: theme.text }]} onPress={() => Alert.alert("Coming Soon", "Apple Sign-in integration is in progress.")}>
+                   <Ionicons name="logo-apple" size={20} color={theme.background} />
+                   <Text style={[styles.socialBtnText, { color: theme.background }]}>Link Apple</Text>
+                 </Pressable>
+                 <Pressable style={[styles.socialBtn, { backgroundColor: '#4285F4' }]} onPress={() => Alert.alert("Coming Soon", "Google Sign-in integration is in progress.")}>
+                   <Ionicons name="logo-google" size={20} color="#fff" />
+                   <Text style={[styles.socialBtnText, { color: '#fff' }]}>Link Google</Text>
+                 </Pressable>
+               </View>
+             </ExpandableSettingsRow>
 
              <ExpandableSettingsRow icon="server-outline" title="Database Configuration" description="Environment connectivity & sync" theme={theme}>
                <Text style={[styles.mockEnvText, { color: theme.icon }]}>Syncing with SECURE_DB_URL via Expo dotenv. Subscriptions routed to RevenueCat identifiers.</Text>
@@ -289,8 +325,22 @@ export default function StudioScreen() {
                </ExpandableSettingsRow>
              )}
 
-             <ExpandableSettingsRow icon="trash-outline" title="Delete Account" description="Erase all generation data" isDanger theme={theme}>
-               <Text style={[styles.mockEnvText, { color: theme.danger }]}>This action is irreversible and drops your configuration from the DB securely.</Text>
+             <ExpandableSettingsRow icon="log-out-outline" title="Sign Out" description="Exit current session" isDanger theme={theme}>
+               <Text style={[styles.mockEnvText, { color: theme.danger, marginBottom: 12 }]}>Signing out will clear your local session. For guests, work may be lost if not synced to a permanent account.</Text>
+               <Pressable
+                 style={[styles.miniButton, { backgroundColor: theme.danger }]}
+                 onPress={() => {
+                   Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+                     { text: "Cancel", style: "cancel" },
+                     { text: "Sign Out", style: "destructive", onPress: () => {
+                       signOut();
+                       router.replace('/');
+                     }}
+                   ]);
+                 }}
+               >
+                 <Text style={[styles.miniBtnText, { color: theme.white }]}>Confirm Sign Out</Text>
+               </Pressable>
              </ExpandableSettingsRow>
           </View>
         </Animated.View>
@@ -351,4 +401,7 @@ const styles = StyleSheet.create({
   mockEnvText: { fontSize: 14, lineHeight: 22, marginTop: 8 },
   miniButton: { padding: 12, borderRadius: 12, alignItems: 'center', marginTop: 12 },
   miniBtnText: { fontWeight: '700', fontSize: 14 },
+  socialBtnRow: { flexDirection: 'row', gap: 12 },
+  socialBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12 },
+  socialBtnText: { fontWeight: '700', fontSize: 13 },
 });

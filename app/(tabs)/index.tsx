@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, FlatList, Dimensions, ActivityIndicator, TextInput } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Pressable, FlatList, Dimensions, ActivityIndicator, TextInput, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInUp, useSharedValue, useAnimatedStyle, withSpring, FadeIn, withRepeat, withTiming } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
@@ -8,10 +8,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/use-auth';
 import { usePurchases } from '@/hooks/use-purchases';
-import { ENTITLEMENT_ID } from '@/lib/purchases';
+import { restorePurchases, ENTITLEMENT_ID } from '@/lib/purchases';
 import { StorageService } from '@/services/storageService';
-import { Alert, Image } from 'react-native';
 
 const { width } = Dimensions.get('window');
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -74,6 +74,7 @@ export default function CreativeScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
   const { isPro, isLoading: subLoading, customerInfo } = usePurchases();
+  const { profile, isGuest } = useAuth();
 
   const [categories, setCategories] = useState<any[]>([]);
   const [templatesByCategory, setTemplatesByCategory] = useState<Record<string, any[]>>({});
@@ -100,7 +101,7 @@ export default function CreativeScreen() {
   }));
 
   // Credits logic
-  const credits = isPro ? '∞' : '150';
+  const creditsDisplay = isPro ? '∞' : (profile?.credits ?? '0');
 
   // Debounce search input
   useEffect(() => {
@@ -217,10 +218,10 @@ export default function CreativeScreen() {
         </View>
         <Pressable 
           onPress={() => router.push('/paywall')}
-          style={[styles.creditsPill, { backgroundColor: theme.card, borderColor: isPro ? theme.accent : theme.border }]}
+          style={[styles.creditsPill, { backgroundColor: theme.card, borderColor: isPro ? theme.accent : (isGuest ? theme.warning : theme.border) }]}
         >
           <Ionicons name={isPro ? "star" : "flash"} size={14} color={isPro ? theme.accent : theme.warning} />
-          <Text style={[styles.creditsText, { color: theme.text }]}>{credits}</Text>
+          <Text style={[styles.creditsText, { color: theme.text }]}>{creditsDisplay}</Text>
         </Pressable>
       </View>
 

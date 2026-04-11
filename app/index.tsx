@@ -5,17 +5,20 @@ import { QuestionCard } from '@/components/QuestionCard';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { StorageService } from '@/services/storageService';
+import { useAuth } from '@/hooks/use-auth';
 import * as Haptics from 'expo-haptics';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
   Pressable,
   StatusBar,
   StyleSheet,
   Text,
-  View
+  View,
+  Alert
 } from 'react-native';
 import Animated, {
   Extrapolation,
@@ -54,9 +57,15 @@ export default function OnboardingScreen() {
   const scrollX = useSharedValue(0);
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [alias, setAlias] = useState('');
+  const [interests, setInterests] = useState<string[]>([]);
+  const [goal, setGoal] = useState('');
+  const [tone, setTone] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
+  const { signInGuest } = useAuth();
 
   useEffect(() => {
     StorageService.hasOnboarded().then(status => {
@@ -77,18 +86,46 @@ export default function OnboardingScreen() {
       const nextIndex = currentIndex + 1;
       flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
     } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await StorageService.setOnboarded();
-      // @ts-ignore
-      router.replace('/(tabs)');
+      setIsSubmitting(true);
+      try {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        // Sign in anonymously with the full profile
+        const { error } = await signInGuest({
+          alias: alias || 'Future Creator',
+          interests,
+          goal,
+          tone
+        });
+        
+        if (error) {
+          Alert.alert("Connection Error", "We couldn't set up your guest profile, but you can still enter the app.");
+        }
+
+        await StorageService.setOnboarded();
+        // @ts-ignore
+        router.replace('/(tabs)');
+      } catch (err) {
+        console.error("Onboarding completion failed", err);
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
   const skip = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await StorageService.setOnboarded();
-    // @ts-ignore
-    router.replace('/(tabs)');
+    setIsSubmitting(true);
+    try {
+      await signInGuest(); // Sign in without metadata
+      await StorageService.setOnboarded();
+      // @ts-ignore
+      router.replace('/(tabs)');
+    } catch (e) {
+      console.error("Skip failed", e);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -113,22 +150,27 @@ export default function OnboardingScreen() {
             <QuestionCard
               type="select"
               options={item.options}
-              onValueChange={() => { }}
+              onValueChange={(val) => {
+                if (item.id === '3') setInterests(val as string[]);
+                if (item.id === '4') setGoal(val as string);
+                if (item.id === '5') setTone(val as string);
+              }}
             />
           )}
           {item.type === 'question_input' && (
             <QuestionCard
               type="input"
               placeholder={item.placeholder}
-              onValueChange={() => { }}
+              onValueChange={(val) => setAlias(val)}
             />
           )}
 
           <View style={styles.buttonWrapper}>
             <AnimatedButton
-              title={index === ONBOARDING_DATA.length - 1 ? 'Get Started' : 'Continue'}
+              title={index === ONBOARDING_DATA.length - 1 ? (isSubmitting ? 'Entering...' : 'Get Started') : 'Continue'}
               onPress={handleNext}
               primary={index === ONBOARDING_DATA.length - 1}
+              disabled={isSubmitting}
             />
           </View>
         </OnboardingStep>
