@@ -18,6 +18,7 @@ interface QuestionCardProps {
   type: 'select' | 'input';
   options?: string[];
   placeholder?: string;
+  multiSelect?: boolean;
   onValueChange: (value: string | string[]) => void;
 }
 
@@ -66,13 +67,32 @@ const OptionChip = ({ option, isSelected, theme, onPress }: any) => {
   );
 };
 
-export const QuestionCard = ({ type, options, placeholder, onValueChange }: QuestionCardProps) => {
+export const QuestionCard = ({ type, options, placeholder, multiSelect = true, onValueChange }: QuestionCardProps) => {
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [showOtherInput, setShowOtherInput] = useState(false);
 
   const toggleOption = (option: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    if (option === 'Other') {
+       setShowOtherInput(!showOtherInput);
+       if (!multiSelect) {
+         setSelectedOptions(['Other']);
+         onValueChange('Other');
+         return;
+       }
+    }
+
+    if (!multiSelect) {
+      setSelectedOptions([option]);
+      onValueChange(option);
+      if (option !== 'Other') setShowOtherInput(false);
+      return;
+    }
+
     const isSelected = selectedOptions.includes(option);
     const newSelection = isSelected
       ? selectedOptions.filter(o => o !== option)
@@ -80,7 +100,6 @@ export const QuestionCard = ({ type, options, placeholder, onValueChange }: Ques
     
     setSelectedOptions(newSelection);
     onValueChange(newSelection);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const handleInputChange = (text: string) => {
@@ -88,27 +107,56 @@ export const QuestionCard = ({ type, options, placeholder, onValueChange }: Ques
     onValueChange(text);
   };
 
+  const handleOtherInputChange = (text: string) => {
+    setInputValue(text);
+    onValueChange(text);
+  };
+
   if (type === 'select' && options) {
     return (
-      <View style={styles.gridContainer}>
-        {options.map((option, index) => {
-          const isSelected = selectedOptions.includes(option);
-          
-          return (
-            <Animated.View 
-              key={option} 
-              entering={FadeInRight.delay(index * 100).duration(500)}
-              layout={Layout.springify()}
-            >
-              <OptionChip 
-                option={option} 
-                isSelected={isSelected} 
-                theme={theme} 
-                onPress={toggleOption} 
-              />
-            </Animated.View>
-          );
-        })}
+      <View style={{ width: '100%' }}>
+        <View style={styles.gridContainer}>
+          {options.map((option, index) => {
+            const isSelected = selectedOptions.includes(option);
+            
+            return (
+              <Animated.View 
+                key={option} 
+                entering={FadeInRight.delay(index * 100).duration(500)}
+                layout={Layout.springify()}
+              >
+                <OptionChip 
+                  option={option} 
+                  isSelected={isSelected} 
+                  theme={theme} 
+                  onPress={toggleOption} 
+                />
+              </Animated.View>
+            );
+          })}
+        </View>
+
+        {showOtherInput && (
+          <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)} style={{ marginTop: 20 }}>
+            <TextInput
+              style={[
+                styles.miniInput,
+                { 
+                  backgroundColor: theme.card,
+                  color: theme.text,
+                  borderColor: inputValue.length > 0 ? theme.primary : theme.border,
+                }
+              ]}
+              placeholder="Please specify..."
+              placeholderTextColor={theme.icon}
+              value={inputValue}
+              onChangeText={handleOtherInputChange}
+              selectionColor={theme.primary}
+              autoFocus
+              onFocus={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+            />
+          </Animated.View>
+        )}
       </View>
     );
   }
@@ -176,6 +224,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 5,
     elevation: 2,
+    textAlign: 'center',
+  },
+  miniInput: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 14,
+    fontSize: 16,
+    borderWidth: 1,
+    fontWeight: '500',
     textAlign: 'center',
   },
 });

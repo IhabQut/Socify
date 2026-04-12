@@ -191,30 +191,7 @@ export default function CreativeScreen() {
               resizeMode="contain" 
             />
           </Animated.View>
-          <Pressable 
-            onPress={async () => {
-              if (!__DEV__) return;
-              const current = await StorageService.getDevProBypass();
-              await StorageService.setDevProBypass(!current);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-              Alert.alert("Dev Mode", `Pro status ${!current ? 'ACTIVATED' : 'REMOVED'}. Please restart the app.`);
-            }}
-            delayLongPress={2000}
-          >
-            <Text style={[styles.appName, { color: theme.text }]}>Socify</Text>
-          </Pressable>
-          {__DEV__ && isPro && (
-            <Pressable 
-              onPress={async () => {
-                await StorageService.setDevProBypass(false);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                Alert.alert("Dev Mode", "Pro status REMOVED. Please restart the app.");
-              }}
-              style={[styles.removeProBtn, { borderColor: theme.accent }]}
-            >
-              <Text style={[styles.removeProText, { color: theme.accent }]}>Remove Pro</Text>
-            </Pressable>
-          )}
+          <Text style={[styles.appName, { color: theme.text }]}>Socify</Text>
         </View>
         <Pressable 
           onPress={() => router.push('/paywall')}

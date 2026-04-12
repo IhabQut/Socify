@@ -65,7 +65,7 @@ export default function CalendarScreen() {
   }, [isPro]);
 
   const initData = async () => {
-    if (!isPro) return;
+    if (!isPro) { setLoading(false); return; }
     setLoading(true);
     
     let start = await StorageService.getPlanStartDate();
@@ -142,14 +142,50 @@ export default function CalendarScreen() {
 
   if (!isPro) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <View style={styles.proLockedContainer}>
-          <Ionicons name="lock-closed" size={64} color={theme.accent} />
-          <Text style={[styles.proLockedTitle, { color: theme.text }]}>Unlock 30-Day Plan</Text>
-          <Text style={[styles.proLockedSubtitle, { color: theme.icon }]}>Activate Socify Pro to get your personalized daily growth roadmap and earn credits.</Text>
-          <Pressable style={[styles.proBtn, { backgroundColor: theme.primary }]} onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}>
-            <Text style={[styles.proBtnText, { color: theme.background }]}>View Plans</Text>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
+        <View style={styles.proGate}>
+
+          {/* Top Icon */}
+          <View style={[styles.proIconRing, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Ionicons name="calendar" size={38} color={theme.text} />
+          </View>
+
+          {/* Headline */}
+          <Text style={[styles.proGateTitle, { color: theme.text }]}>30-Day Growth Plan</Text>
+          <Text style={[styles.proGateSub, { color: theme.icon }]}>
+            Your personalized daily roadmap to grow faster on social media — unlocked with Pro.
+          </Text>
+
+          {/* Benefits */}
+          {[
+            { icon: 'checkmark-circle', label: 'Daily actionable growth tasks' },
+            { icon: 'checkmark-circle', label: 'Track progress across 30 days' },
+            { icon: 'checkmark-circle', label: 'Earn credits with every task' },
+            { icon: 'checkmark-circle', label: 'Personalized niche strategy' },
+          ].map((item, i) => (
+            <View key={i} style={styles.proBenefit}>
+              <Ionicons name={item.icon as any} size={20} color={theme.text} />
+              <Text style={[styles.proBenefitText, { color: theme.text }]}>{item.label}</Text>
+            </View>
+          ))}
+
+          {/* CTA */}
+          <Pressable
+            style={[styles.proCtaBtn, { backgroundColor: theme.text }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              // Navigate to paywall
+              const { router } = require('expo-router');
+              router.push('/paywall');
+            }}
+          >
+            <Ionicons name="flash" size={18} color={theme.background} />
+            <Text style={[styles.proCtaBtnText, { color: theme.background }]}>Go Pro to Unlock</Text>
           </Pressable>
+
+          <Text style={[styles.proFinePrint, { color: theme.icon }]}>
+            Cancel anytime · Billed monthly or yearly
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -311,6 +347,17 @@ const styles = StyleSheet.create({
   lockedHint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 40 },
   lockedHintText: { fontSize: 14, fontWeight: '600' },
 
+  proGate: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 36, gap: 16 },
+  proIconRing: { width: 88, height: 88, borderRadius: 44, borderWidth: 1, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  proGateTitle: { fontSize: 28, fontWeight: '900', letterSpacing: -0.8, textAlign: 'center' },
+  proGateSub: { fontSize: 15, textAlign: 'center', lineHeight: 22, fontWeight: '500', marginBottom: 8 },
+  proBenefit: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'stretch', paddingHorizontal: 8 },
+  proBenefitText: { fontSize: 15, fontWeight: '600' },
+  proCtaBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, paddingHorizontal: 36, paddingVertical: 16, borderRadius: 30 },
+  proCtaBtnText: { fontSize: 16, fontWeight: '800' },
+  proFinePrint: { fontSize: 12, fontWeight: '500', marginTop: 4 },
+
+  // Legacy (kept for safety)
   proLockedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, gap: 20 },
   proLockedTitle: { fontSize: 26, fontWeight: '900' },
   proLockedSubtitle: { fontSize: 16, textAlign: 'center', lineHeight: 24 },

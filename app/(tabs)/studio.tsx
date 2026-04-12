@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, FlatList, ActivityIndicator, Alert, Image } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Pressable, TextInput, FlatList, ActivityIndicator, Alert, Image, Modal, Share, Linking, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInUp, FadeIn, useSharedValue, useAnimatedStyle, withSpring, Layout } from 'react-native-reanimated';
+import Animated, { FadeInUp, FadeIn, useSharedValue, useAnimatedStyle, withSpring, Layout, FadeOut, Extrapolation, FadeInDown, FadeOutDown, useAnimatedScrollHandler } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -13,6 +14,7 @@ import { useAuth, Profile } from '@/hooks/use-auth';
 import { usePurchases } from '@/hooks/use-purchases';
 import { restorePurchases, ENTITLEMENT_ID } from '@/lib/purchases';
 import { supabase } from '@/lib/supabase';
+import { AssetCacheService, CachedAsset } from '@/services/assetCacheService';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -57,34 +59,73 @@ export default function StudioScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
   const { customerInfo, isPro, isLoading: subLoading, refresh: refreshSub } = usePurchases();
-  const { profile, loading: authLoading, isGuest, signOut } = useAuth();
-
+  const { profile, brands, defaultBrand, loading: authLoading, isGuest, signOut, updateProfile, updateDefaultBrand, updateBrandPlatforms } = useAuth();
+ 
+  const [isEditing, setIsEditing] = useState(false);
   const [alias, setAlias] = useState('Creative');
-  const [interest, setInterest] = useState('Marketing Agency');
-  const [goal, setGoal] = useState('Build Portfolio');
-  const [tone, setTone] = useState('Professional');
+  const [interest, setInterest] = useState('');
+  const [goal, setGoal] = useState('');
+  const [tone, setTone] = useState('');
+  const [discovery, setDiscovery] = useState('');
+  const [shopName, setShopName] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [brandIdentity, setBrandIdentity] = useState('');
+  const [frequency, setFrequency] = useState('');
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  
+  const [saving, setSaving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [avatarId, setAvatarId] = useState('person');
+  const [showSettings, setShowSettings] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Sync with Supabase Profile
+  // Sync with Supabase Profile & Brand
   useEffect(() => {
     if (profile) {
-      setAlias(profile.full_name || 'Creative');
-      setInterest(profile.interest_areas?.join(', ') || '');
-      setGoal(profile.primary_goal || 'Build Portfolio');
-      setTone(profile.preferred_tone || 'Professional');
+      setAlias(profile.full_name || '');
+      setDiscovery(profile.discovery_source || '');
       if (profile.avatar_url) setAvatarId(profile.avatar_url);
     }
-  }, [profile]);
+    if (defaultBrand) {
+      setShopName(defaultBrand.shop_name || '');
+      setIndustry(defaultBrand.industry || '');
+      setBrandIdentity(defaultBrand.brand_identity || '');
+      setGoal(defaultBrand.primary_goal || '');
+      setTone(defaultBrand.preferred_tone || '');
+      setFrequency(defaultBrand.marketing_frequency || '');
+    }
+  }, [profile, defaultBrand, isEditing]); // Re-sync when entering/exiting edit mode for 'Cancel' effect
 
-  const saveProfile = async (updates: Partial<Profile>) => {
-    if (profile) {
-      const { error } = await supabase.from('profiles').update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      }).eq('id', profile.id);
-      
-      if (error) console.error("Error updating profile in Supabase", error);
+  const handleSaveSettings = async () => {
+    setSaving(true);
+    try {
+      // 1. Update Core User (users table)
+      await updateProfile({
+        full_name: alias,
+        discovery_source: discovery,
+      });
+
+      // 2. Update Default Brand (brands table)
+      await updateDefaultBrand({
+        shop_name: shopName,
+        industry: industry,
+        brand_identity: brandIdentity,
+        primary_goal: goal,
+        preferred_tone: tone,
+        marketing_frequency: frequency
+      });
+
+      // 3. Update Platforms (brand_platforms table)
+      if (selectedPlatforms.length > 0) {
+        await updateBrandPlatforms(selectedPlatforms);
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setIsEditing(false);
+    } catch (e) {
+      Alert.alert("Error", "Could not save settings.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -98,12 +139,6 @@ export default function StudioScreen() {
   const handleOpenPaywall = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/paywall');
-  };
-
-  const handlePresentPaywallIfNeeded = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const result = await RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: ENTITLEMENT_ID });
-    if (result !== 'NOT_PRESENTED') refreshSub();
   };
 
   const handleRestorePurchases = async () => {
@@ -126,265 +161,574 @@ export default function StudioScreen() {
     refreshSub();
   };
 
-  const [previousWork, setPreviousWork] = useState<any[]>([
-    { id: '1', title: 'Summer Promo', asset_type: 'Generated Ad' },
-    { id: '2', title: 'CEO Intro', asset_type: 'Copywriting' },
-    { id: '3', title: 'Q3 Flyer', asset_type: 'Design Asset' },
-  ]);
+  const [previousWork, setPreviousWork] = useState<any[]>([]);
+
+  const fetchAssets = async () => {
+    const cached = await AssetCacheService.getCachedAssets();
+    if (cached.length > 0) {
+      setPreviousWork(cached);
+    }
+
+    const { data, error } = await supabase
+      .from('generated_assets')
+      .select('id, title, asset_type, created_at')
+      .order('created_at', { ascending: false })
+      .limit(30);
+    
+    if (data) {
+      setPreviousWork(data);
+    }
+  };
 
   useEffect(() => {
-    async function fetchAssets() {
-      const { data, error } = await supabase
-        .from('generated_assets')
-        .select('id, title, asset_type, created_at')
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (data && data.length > 0) setPreviousWork(data);
-    }
     fetchAssets();
   }, []);
 
+  const handleShare = async (item: any) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Share.share({
+        message: `Check out my ${item.asset_type} "${item.title}" I created with Socify!`,
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    const { error } = await supabase.from('generated_assets').delete().eq('id', id);
+    if (!error) {
+      setPreviousWork(prev => prev.filter(item => item.id !== id));
+    }
+    setDeletingId(null);
+  };
+
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      "Delete Account",
+      "This will permanently erase all your creations, profile data, and credits. This action cannot be undone.\n\nNote: Active subscriptions must be cancelled separately in the App Store.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete Everything", 
+          style: "destructive", 
+          onPress: async () => {
+            if (!profile) return;
+            setDeletingId('account');
+            
+            await supabase.from('generated_assets').delete().eq('user_id', profile.id);
+            const { error } = await supabase.from('users').delete().eq('id', profile.id);
+            
+            if (!error) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              signOut();
+              router.replace('/');
+            } else {
+              Alert.alert("Error", "Could not delete account. Please try again.");
+            }
+            setDeletingId(null);
+          }
+        }
+      ]
+    );
+  };
+
+  const handleRateApp = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Linking.openURL('https://apps.apple.com/app/socify');
+  };
+
+  const handleShareApp = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await Share.share({
+        message: "Check out Socify - the ultimate AI creative studio for creators! https://socify.ai",
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <View style={[styles.fixedHeader, { borderBottomColor: theme.border }]}>
+        <View>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Studio</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.icon }]}>Your Creative Engine</Text>
+        </View>
         
-        {/* Profile Header */}
-        <Animated.View entering={FadeInUp.delay(100).duration(800)} style={styles.profileHeader}>
-          <Pressable style={[styles.avatarPlaceholder, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 2 }]}>
-            <Ionicons name={avatarId as any} size={42} color={theme.accent} />
-            <View style={[styles.editAvatarBadge, { backgroundColor: theme.accent, borderColor: theme.background }]}>
-              <Ionicons name="camera" size={12} color={theme.background} />
-            </View>
-          </Pressable>
-          <Text style={[styles.name, { color: theme.text }]}>{alias}</Text>
-          <View style={[styles.planBadge, { backgroundColor: isPro ? theme.accent + '15' : (isGuest ? theme.warning + '15' : 'transparent'), borderColor: isPro ? theme.accent : (isGuest ? theme.warning : theme.border) }]}>
-            <Text style={[styles.planBadgeText, { color: isPro ? theme.accent : (isGuest ? theme.warning : theme.icon) }]}>
-              {isGuest ? 'Guest Mode ✦' : planLabel}
-            </Text>
-          </View>
-        </Animated.View>
-
-        {/* Subscription & Credits */}
-        <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.statsRow}>
-          <View style={[styles.statBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View style={styles.creditHeader}>
-              <Ionicons name="flash" size={18} color={theme.warning} />
-              <Text style={[styles.statLabel, { color: theme.icon }]}>Credits</Text>
-            </View>
-            {subLoading ? (
-              <ActivityIndicator color={theme.primary} style={{ marginTop: 6 }} />
-            ) : (
-              <Text style={[styles.statValue, { color: theme.text }]}>{creditsDisplay}</Text>
-            )}
-          </View>
-          
-          <AnimatedPressable 
-            style={[styles.subBox, subAnimatedStyle, { backgroundColor: isPro ? theme.warning : theme.primary }]}
-            onPressIn={() => { subScale.value = withSpring(0.95); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-            onPressOut={() => subScale.value = withSpring(1)}
-            onPress={isPro ? handleCustomerCenter : handleOpenPaywall}
+        <View style={styles.headerActions}>
+          <Pressable 
+            onPress={() => router.push('/paywall')}
+            style={[styles.creditsPill, { backgroundColor: theme.card, borderColor: isPro ? theme.accent : (isGuest ? theme.warning : theme.border) }]}
           >
-            <Ionicons name={isPro ? 'star' : 'rocket-outline'} size={20} color={theme.background} style={{ marginBottom: 4 }} />
-            <Text style={[styles.subText, { color: theme.background }]}>{isPro ? 'Manage Plan' : 'Go Pro'}</Text>
-            <Text style={[styles.subDesc, { color: theme.background + 'dd' }]}>{isPro ? 'Socify Pro active' : 'Yearly & Monthly'}</Text>
-          </AnimatedPressable>
-        </Animated.View>
+            <Ionicons name={isPro ? "star" : "flash"} size={14} color={isPro ? theme.accent : theme.warning} />
+            <Text style={[styles.creditsText, { color: theme.text }]}>{creditsDisplay}</Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.settingsButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+            onPress={() => { setShowSettings(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+          >
+            <Ionicons name="settings-outline" size={20} color={theme.text} />
+          </Pressable>
+        </View>
+      </View>
 
-        {/* Your Creations Section */}
-        <Animated.View entering={FadeIn.delay(300).duration(600)} style={styles.historySection}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Your Creations</Text>
-            {previousWork.length > 0 && (
-              <Pressable onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
-                <Text style={[styles.seeAllText, { color: theme.accent }]}>View All</Text>
-              </Pressable>
-            )}
-          </View>
-
-          {previousWork.length === 0 ? (
-            <View style={[styles.emptyStateContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <View style={[styles.emptyIconCircle, { backgroundColor: theme.accent + '15' }]}>
-                <Ionicons name="color-palette-outline" size={32} color={theme.accent} />
-              </View>
-              <Text style={[styles.emptyStateTitle, { color: theme.text }]}>No assets created yet</Text>
-              <Text style={[styles.emptyStateDesc, { color: theme.icon }]}>Your generated ads, copy, and designs will appear here.</Text>
-              <Pressable 
-                style={[styles.ctaButton, { backgroundColor: theme.accent }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  router.push('/(tabs)/');
-                }}
-              >
-                <Text style={[styles.ctaButtonText, { color: theme.background }]}>Start Creating</Text>
-                <Ionicons name="arrow-forward" size={18} color={theme.background} />
-              </Pressable>
+      <FlatList
+        data={previousWork}
+        keyExtractor={i => i.id}
+        numColumns={2}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.gridContainer, { paddingBottom: 100 }]}
+        columnWrapperStyle={styles.gridRow}
+        ListHeaderComponent={
+          <Animated.View entering={FadeIn.duration(600)} style={styles.gridHeader}>
+            <View style={styles.sectionHeader}>
+               <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Work</Text>
+               <Text style={[styles.assetCount, { color: theme.icon }]}>{previousWork.length} Assets</Text>
             </View>
-          ) : (
-            <FlatList
-               data={previousWork}
-               keyExtractor={i => i.id}
-               horizontal
-               showsHorizontalScrollIndicator={false}
-               contentContainerStyle={styles.historyList}
-               renderItem={({ item }) => (
-                 <View style={[styles.historyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                   <View style={[styles.historyImage, { backgroundColor: theme.border }]}>
-                     <Ionicons name="image-outline" size={30} color={theme.icon} opacity={0.3} />
-                   </View>
-                   <Text style={[styles.historyTitle, { color: theme.text }]} numberOfLines={1}>{item.title}</Text>
-                   <View style={styles.historyFooter}>
-                     <Text style={[styles.historySubtitle, { color: theme.icon }]} numberOfLines={1}>{item.asset_type}</Text>
-                     <Ionicons name="checkmark-circle" size={14} color={theme.accent} />
-                   </View>
-                 </View>
-               )}
-            />
-          )}
-        </Animated.View>
 
-        {/* Scalable Expandable Settings List */}
-        <Animated.View layout={Layout.springify()} entering={FadeIn.delay(400).duration(600)} style={styles.settingsSection}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Application Core</Text>
-          
-          <View style={styles.settingsBlock}>
-              <ExpandableSettingsRow icon="person-outline" title="Creator Profile" description="Edit your Alias and preferences" theme={theme}>
+            <View style={styles.subContainer}>
+              <AnimatedPressable 
+                style={[styles.subBox, subAnimatedStyle, { backgroundColor: isPro ? theme.warning : theme.accent }]}
+                onPressIn={() => { subScale.value = withSpring(0.95); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                onPressOut={() => subScale.value = withSpring(1)}
+                onPress={isPro ? handleCustomerCenter : handleOpenPaywall}
+              >
+                <View style={styles.subIconRow}>
+                   <Ionicons name={isPro ? 'star' : 'rocket-outline'} size={24} color={theme.background} />
+                </View>
+                <View style={styles.subTextContent}>
+                  <Text style={[styles.subText, { color: theme.background }]}>{isPro ? 'Socify Pro Active' : 'Upgrade to Pro'}</Text>
+                  <Text style={[styles.subDesc, { color: theme.background + 'cc' }]}>
+                    {isPro ? 'Unlimited Credits • Premium Tools' : 'Get unlimited credits and features'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={theme.background} opacity={0.6} />
+              </AnimatedPressable>
+            </View>
+
+            {previousWork.length === 0 && (
+              <View style={[styles.emptyStateContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <View style={[styles.emptyIconCircle, { backgroundColor: theme.accent + '15' }]}>
+                  <Ionicons name="color-palette-outline" size={32} color={theme.accent} />
+                </View>
+                <Text style={[styles.emptyStateTitle, { color: theme.text }]}>No assets created yet</Text>
+                <Text style={[styles.emptyStateDesc, { color: theme.icon }]}>Your generated ads, copy, and designs will appear here.</Text>
+                <Pressable 
+                  style={[styles.ctaButton, { backgroundColor: theme.accent }]}
+                  onPress={() => router.push('/(tabs)/')}
+                >
+                  <Text style={[styles.ctaButtonText, { color: theme.background }]}>Start Creating</Text>
+                  <Ionicons name="arrow-forward" size={18} color={theme.background} />
+                </Pressable>
+              </View>
+            )}
+          </Animated.View>
+        }
+        renderItem={({ item }) => (
+          <Animated.View entering={FadeIn} layout={Layout.springify()} style={[styles.historyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={[styles.historyImage, { backgroundColor: theme.border }]}>
+              <Ionicons name={item.asset_type.toLowerCase().includes('copy') ? "document-text-outline" : "image-outline"} size={36} color={theme.icon} opacity={0.3} />
+              
+              <View style={styles.cardActions}>
+                 <Pressable style={[styles.actionBtn, { backgroundColor: theme.background + 'cc' }]} onPress={() => handleShare(item)}>
+                    <Ionicons name="share-outline" size={14} color={theme.text} />
+                 </Pressable>
+                 <Pressable 
+                   style={[styles.actionBtn, { backgroundColor: theme.background + 'cc' }]} 
+                   onPress={() => handleDelete(item.id)}
+                   disabled={deletingId === item.id}
+                 >
+                    {deletingId === item.id ? (
+                      <ActivityIndicator size="small" color={theme.danger} />
+                    ) : (
+                      <Ionicons name="trash-outline" size={14} color={theme.danger} />
+                    )}
+                 </Pressable>
+              </View>
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={[styles.historyTitle, { color: theme.text }]} numberOfLines={1}>{item.title}</Text>
+              <View style={styles.historyFooter}>
+                <Text style={[styles.historySubtitle, { color: theme.icon }]} numberOfLines={1}>{item.asset_type}</Text>
+                <Ionicons name="checkmark-circle" size={14} color={theme.accent} />
+              </View>
+            </View>
+          </Animated.View>
+        )}
+      />
+
+      <Modal
+        visible={showSettings}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowSettings(false)}
+      >
+        <KeyboardAvoidingView 
+          style={{ flex: 1 }} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+               <View style={{ width: 40 }} /> 
+               <Text style={[styles.modalTitle, { color: theme.text }]}>
+                 {isEditing ? 'Edit Profile' : 'Settings'}
+               </Text>
+               <Pressable 
+                 style={[styles.closeButton, { backgroundColor: theme.card }]} 
+                 onPress={() => { Keyboard.dismiss(); setShowSettings(false); setIsEditing(false); }}
+               >
+                 <Ionicons name="close" size={22} color={theme.text} />
+               </Pressable>
+            </View>
+
+          <ScrollView contentContainerStyle={[styles.modalScroll, isEditing && { paddingBottom: 120 }]}>
+            <View style={styles.profileHeader}>
+              <Pressable style={[styles.avatarPlaceholder, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 2 }]}>
+                <Ionicons name={avatarId as any} size={42} color={theme.accent} />
+                <View style={[styles.editAvatarBadge, { backgroundColor: theme.accent, borderColor: theme.background }]}>
+                  <Ionicons name="camera" size={12} color={theme.background} />
+                </View>
+              </Pressable>
+              <Text style={[styles.name, { color: theme.text }]}>{alias}</Text>
+              
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <View style={[styles.planBadge, { backgroundColor: isPro ? theme.accent + '15' : (isGuest ? theme.warning + '15' : 'transparent'), borderColor: isPro ? theme.accent : (isGuest ? theme.warning : theme.border) }]}>
+                  <Text style={[styles.planBadgeText, { color: isPro ? theme.accent : (isGuest ? theme.warning : theme.icon) }]}>
+                    {isGuest ? 'Guest Mode ✦' : planLabel}
+                  </Text>
+                </View>
+              </View>
+
+              {!isEditing && (
+                <Animated.View entering={FadeIn.delay(200)}>
+                  <Pressable 
+                    style={[styles.editProfileTrigger, { backgroundColor: theme.card, borderColor: theme.border }]}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsEditing(true); }}
+                  >
+                    <Ionicons name="create-outline" size={16} color={theme.text} />
+                    <Text style={[styles.editProfileTriggerText, { color: theme.text }]}>Edit Profile</Text>
+                  </Pressable>
+                </Animated.View>
+              )}
+            </View>
+
+            <View style={styles.settingsBlock}>
+              <ExpandableSettingsRow icon="person-outline" title="Creator Profile" description="Your name and discovery source" theme={theme}>
                 <View style={styles.editorContent}>
                   <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Alias</Text>
+                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Alias / Full Name</Text>
                     <TextInput 
-                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
                       value={alias} 
-                      onChangeText={(v) => { setAlias(v); saveProfile(v, interest); }} 
+                      onChangeText={setAlias}
+                      editable={isEditing}
+                      placeholder="e.g. Creative Director"
+                      placeholderTextColor={theme.icon}
                     />
                   </View>
                   <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Focus / Industry</Text>
+                    <Text style={[styles.inputLabel, { color: theme.icon }]}>How did you find us?</Text>
                     <TextInput 
-                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
-                      value={interest} 
-                      onChangeText={(v) => { setInterest(v); saveProfile(alias, v); }} 
-                      onChangeText={(v) => { setInterest(v); saveProfile({ interest_areas: v.split(', ') }); }} 
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Tone</Text>
-                    <TextInput 
-                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]} 
-                      value={tone} 
-                      onChangeText={(v) => { setTone(v); saveProfile({ preferred_tone: v }); }} 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
+                      value={discovery} 
+                      onChangeText={setDiscovery}
+                      editable={isEditing}
+                      placeholder="e.g. Instagram, Referral"
+                      placeholderTextColor={theme.icon}
                     />
                   </View>
                 </View>
               </ExpandableSettingsRow>
 
-             <ExpandableSettingsRow icon="link-outline" title="Permanent Account" description="Save progress with Apple or Google" theme={theme}>
-               <Text style={[styles.mockEnvText, { color: theme.text, marginBottom: 16 }]}>Link your guest session to a permanent account to sync your work across all devices.</Text>
-               <View style={styles.socialBtnRow}>
-                 <Pressable style={[styles.socialBtn, { backgroundColor: theme.text }]} onPress={() => Alert.alert("Coming Soon", "Apple Sign-in integration is in progress.")}>
-                   <Ionicons name="logo-apple" size={20} color={theme.background} />
-                   <Text style={[styles.socialBtnText, { color: theme.background }]}>Link Apple</Text>
-                 </Pressable>
-                 <Pressable style={[styles.socialBtn, { backgroundColor: '#4285F4' }]} onPress={() => Alert.alert("Coming Soon", "Google Sign-in integration is in progress.")}>
-                   <Ionicons name="logo-google" size={20} color="#fff" />
-                   <Text style={[styles.socialBtnText, { color: '#fff' }]}>Link Google</Text>
-                 </Pressable>
-               </View>
-             </ExpandableSettingsRow>
+              <ExpandableSettingsRow icon="business-outline" title="Brand Identity" description="Your business and focus" theme={theme}>
+                <View style={styles.editorContent}>
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Business / Shop Name</Text>
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
+                      value={shopName} 
+                      onChangeText={setShopName}
+                      editable={isEditing}
+                      placeholder="My Creative Studio"
+                      placeholderTextColor={theme.icon}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Industry (Sector)</Text>
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
+                      value={industry} 
+                      onChangeText={setIndustry}
+                      editable={isEditing}
+                      placeholder="e.g. Tech, Fashion, Design"
+                      placeholderTextColor={theme.icon}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Brand Concept</Text>
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
+                      value={brandIdentity} 
+                      onChangeText={setBrandIdentity}
+                      editable={isEditing}
+                      placeholder="Describe your brand mood..."
+                      placeholderTextColor={theme.icon}
+                      multiline={isEditing}
+                    />
+                  </View>
+                </View>
+              </ExpandableSettingsRow>
 
-             <ExpandableSettingsRow icon="server-outline" title="Database Configuration" description="Environment connectivity & sync" theme={theme}>
-               <Text style={[styles.mockEnvText, { color: theme.icon }]}>Syncing with SECURE_DB_URL via Expo dotenv. Subscriptions routed to RevenueCat identifiers.</Text>
-             </ExpandableSettingsRow>
+              <ExpandableSettingsRow icon="rocket-outline" title="Marketing Strategy" description="Goals and frequency" theme={theme}>
+                <View style={styles.editorContent}>
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Primary Goal</Text>
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
+                      value={goal} 
+                      onChangeText={setGoal}
+                      editable={isEditing}
+                      placeholder="e.g. Sales, Grow Community"
+                      placeholderTextColor={theme.icon}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Tone of Voice</Text>
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
+                      value={tone} 
+                      onChangeText={setTone}
+                      editable={isEditing}
+                      placeholder="e.g. Casual, Bold, Minimalist"
+                      placeholderTextColor={theme.icon}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Publishing Frequency</Text>
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
+                      value={frequency} 
+                      onChangeText={setFrequency}
+                      editable={isEditing}
+                      placeholder="e.g. Daily, 3 times/week"
+                      placeholderTextColor={theme.icon}
+                    />
+                  </View>
+                </View>
+              </ExpandableSettingsRow>
 
-             <ExpandableSettingsRow icon="shield-checkmark-outline" title="Manage Permissions" description="Camera, Photos, Push Notifications" theme={theme}>
-               <Text style={[styles.mockEnvText, { color: theme.text }]}>• Notifications: Enabled</Text>
-               <Text style={[styles.mockEnvText, { color: theme.text }]}>• Photo Library: Off</Text>
-             </ExpandableSettingsRow>
-             
-             <ExpandableSettingsRow icon="cart-outline" title="Restore Purchases" description="Sync your App Store subscriptions" theme={theme}>
+              <ExpandableSettingsRow icon="link-outline" title="Permanent Account" description="Save progress with Apple or Google" theme={theme}>
+                <Text style={[styles.mockEnvText, { color: theme.text, marginBottom: 16 }]}>Link your guest session to a permanent account to sync your work across all devices.</Text>
+                <View style={styles.socialBtnRow}>
+                  <Pressable style={[styles.socialBtn, { backgroundColor: theme.text }]} onPress={() => Alert.alert("Coming Soon", "Apple Sign-in integration.")}>
+                    <Ionicons name="logo-apple" size={20} color={theme.background} />
+                    <Text style={[styles.socialBtnText, { color: theme.background }]}>Link Apple</Text>
+                  </Pressable>
+                  <Pressable style={[styles.socialBtn, { backgroundColor: '#4285F4' }]} onPress={() => Alert.alert("Coming Soon", "Google Sign-in integration.")}>
+                    <Ionicons name="logo-google" size={20} color="#fff" />
+                    <Text style={[styles.socialBtnText, { color: '#fff' }]}>Link Google</Text>
+                  </Pressable>
+                </View>
+              </ExpandableSettingsRow>
+
+              <ExpandableSettingsRow icon="server-outline" title="Database Configuration" description="Environment connectivity & sync" theme={theme}>
+                <Text style={[styles.mockEnvText, { color: theme.icon }]}>Syncing with Supabase Production. Subscriptions routed via RevenueCat.</Text>
+              </ExpandableSettingsRow>
+
+              <ExpandableSettingsRow icon="shield-checkmark-outline" title="Manage Permissions" description="Camera, Photos, Push Notifications" theme={theme}>
+                <Text style={[styles.mockEnvText, { color: theme.text, marginBottom: 16 }]}>Grant or revoke access to camera, image library, and notifications in your device settings.</Text>
                 <Pressable
-                  style={[styles.miniButton, { backgroundColor: theme.primary, opacity: restoring ? 0.6 : 1 }]}
-                  onPress={handleRestorePurchases}
-                  disabled={restoring}
+                  style={[styles.miniButton, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border }]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    Linking.openSettings();
+                  }}
                 >
-                  {restoring ? (
-                  <ActivityIndicator color={theme.background} size="small" />
+                  <Text style={[styles.miniBtnText, { color: theme.text }]}>Open System Settings</Text>
+                </Pressable>
+              </ExpandableSettingsRow>
+              
+              <ExpandableSettingsRow icon="cart-outline" title="Restore Purchases" description="Sync your App Store subscriptions" theme={theme}>
+                 <Pressable
+                   style={[styles.miniButton, { backgroundColor: theme.primary, opacity: restoring ? 0.6 : 1 }]}
+                   onPress={handleRestorePurchases}
+                   disabled={restoring}
+                 >
+                   {restoring ? (
+                   <ActivityIndicator color={theme.background} size="small" />
+                   ) : (
+                     <Text style={[styles.miniBtnText, { color: theme.background }]}>Restore via RevenueCat SDK</Text>
+                   )}
+                 </Pressable>
+              </ExpandableSettingsRow>
+
+              {isPro && (
+                <ExpandableSettingsRow icon="people-circle-outline" title="Manage Subscription" description="Cancel, change plan, or get support" theme={theme}>
+                  <Pressable
+                    style={[styles.miniButton, { backgroundColor: theme.warning }]}
+                    onPress={handleCustomerCenter}
+                  >
+                     <Text style={[styles.miniBtnText, { color: theme.background }]}>Open Customer Center</Text>
+                  </Pressable>
+                </ExpandableSettingsRow>
+              )}
+
+              <ExpandableSettingsRow icon="log-out-outline" title="Sign Out" description="Exit current session" isDanger theme={theme}>
+                <Text style={[styles.mockEnvText, { color: theme.danger, marginBottom: 12 }]}>Signing out will clear your local session.</Text>
+                <Pressable
+                  style={[styles.miniButton, { backgroundColor: theme.danger }]}
+                  onPress={() => {
+                    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Sign Out", style: "destructive", onPress: () => {
+                        signOut();
+                        router.replace('/');
+                      }}
+                    ]);
+                  }}
+                >
+                  <Text style={[styles.miniBtnText, { color: theme.white }]}>Confirm Sign Out</Text>
+                </Pressable>
+              </ExpandableSettingsRow>
+
+              <View style={styles.settingsDivider} />
+              <Text style={[styles.sectionHeaderLabel, { color: theme.icon }]}>Data & Legal</Text>
+
+              <ExpandableSettingsRow icon="shield-off-outline" title="Account & Privacy" description="Delete your information" isDanger theme={theme}>
+                <Text style={[styles.mockEnvText, { color: theme.danger, marginBottom: 12 }]}>Warning: Deleting your account is permanent. All your creative work and profile details will be destroyed.</Text>
+                <Pressable
+                  style={[styles.miniButton, { backgroundColor: theme.danger, opacity: deletingId === 'account' ? 0.7 : 1 }]}
+                  onPress={handleDeleteAccount}
+                  disabled={deletingId === 'account'}
+                >
+                  {deletingId === 'account' ? (
+                    <ActivityIndicator color={theme.white} size="small" />
                   ) : (
-                    <Text style={[styles.miniBtnText, { color: theme.background }]}>Restore via RevenueCat SDK</Text>
+                    <Text style={[styles.miniBtnText, { color: theme.white }]}>Permanent Account Deletion</Text>
                   )}
                 </Pressable>
-             </ExpandableSettingsRow>
+              </ExpandableSettingsRow>
 
-             {isPro && (
-               <ExpandableSettingsRow icon="people-circle-outline" title="Manage Subscription" description="Cancel, change plan, or get support" theme={theme}>
-                 <Pressable
-                   style={[styles.miniButton, { backgroundColor: theme.warning }]}
-                   onPress={handleCustomerCenter}
-                 >
-                    <Text style={[styles.miniBtnText, { color: theme.background }]}>Open Customer Center</Text>
-                 </Pressable>
-               </ExpandableSettingsRow>
-             )}
+              <View style={styles.settingsDivider} />
+              <Text style={[styles.sectionHeaderLabel, { color: theme.icon }]}>Help & Growth</Text>
 
-             <ExpandableSettingsRow icon="log-out-outline" title="Sign Out" description="Exit current session" isDanger theme={theme}>
-               <Text style={[styles.mockEnvText, { color: theme.danger, marginBottom: 12 }]}>Signing out will clear your local session. For guests, work may be lost if not synced to a permanent account.</Text>
-               <Pressable
-                 style={[styles.miniButton, { backgroundColor: theme.danger }]}
-                 onPress={() => {
-                   Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-                     { text: "Cancel", style: "cancel" },
-                     { text: "Sign Out", style: "destructive", onPress: () => {
-                       signOut();
-                       router.replace('/');
-                     }}
-                   ]);
-                 }}
-               >
-                 <Text style={[styles.miniBtnText, { color: theme.white }]}>Confirm Sign Out</Text>
-               </Pressable>
-             </ExpandableSettingsRow>
-          </View>
-        </Animated.View>
-      </ScrollView>
+              <Pressable style={[styles.simpleRow, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={handleRateApp}>
+                <Ionicons name="star-outline" size={20} color={theme.accent} />
+                <Text style={[styles.simpleRowText, { color: theme.text }]}>Star us on App Store</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.icon} />
+              </Pressable>
+
+              <Pressable style={[styles.simpleRow, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={handleShareApp}>
+                <Ionicons name="share-social-outline" size={20} color={theme.text} />
+                <Text style={[styles.simpleRowText, { color: theme.text }]}>Share with Friends</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.icon} />
+              </Pressable>
+
+              <View style={styles.settingsDivider} />
+              
+              <Pressable style={styles.legalRow} onPress={() => Linking.openURL('https://socify.ai/privacy')}>
+                 <Text style={[styles.legalText, { color: theme.icon }]}>Privacy Policy</Text>
+              </Pressable>
+              <Pressable style={styles.legalRow} onPress={() => Linking.openURL('https://socify.ai/terms')}>
+                 <Text style={[styles.legalText, { color: theme.icon }]}>Terms of Use</Text>
+              </Pressable>
+              <Pressable style={styles.legalRow} onPress={() => Linking.openURL('https://socify.ai/agreement')}>
+                 <Text style={[styles.legalText, { color: theme.icon }]}>Payment Agreement</Text>
+              </Pressable>
+           </View>
+          </ScrollView>
+
+            {isEditing && (
+              <Animated.View 
+                entering={FadeInDown.duration(400)} 
+                exiting={FadeOutDown.duration(300)}
+                style={styles.stickyFooterContainer}
+              >
+                <BlurView intensity={Platform.OS === 'ios' ? 80 : 100} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={styles.blurWrapper}>
+                  <View style={[styles.footerContent, { borderTopColor: theme.border }]}>
+                    <Pressable 
+                      style={[styles.cancelFooterBtn, { borderColor: theme.border }]} 
+                      onPress={() => { Keyboard.dismiss(); setIsEditing(false); }}
+                    >
+                      <Text style={[styles.cancelFooterBtnText, { color: theme.icon }]}>Cancel</Text>
+                    </Pressable>
+                    <Pressable 
+                      style={[styles.saveFooterBtn, { backgroundColor: theme.primary }]} 
+                      onPress={handleSaveSettings}
+                      disabled={saving}
+                    >
+                      {saving ? (
+                         <ActivityIndicator size="small" color={theme.background} />
+                      ) : (
+                        <Text style={[styles.saveFooterBtnText, { color: theme.background }]}>Save Changes</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </BlurView>
+              </Animated.View>
+            )}
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+    </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { paddingVertical: 24, paddingBottom: 100 },
-  profileHeader: { alignItems: 'center', marginTop: 20, marginBottom: 32 },
-  avatarPlaceholder: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  editAvatarBadge: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-  name: { fontSize: 28, fontWeight: '800', marginBottom: 8 },
-  planBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
-  planBadgeText: { fontSize: 13, fontWeight: '700' },
-  statsRow: { flexDirection: 'row', gap: 16, marginBottom: 40, paddingHorizontal: 24 },
-  statBox: { flex: 1, padding: 20, borderRadius: 24, alignItems: 'flex-start', borderWidth: 1 },
-  creditHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  statValue: { fontSize: 32, fontWeight: '800' },
-  statLabel: { fontSize: 14, fontWeight: '600', textTransform: 'uppercase' },
-  subBox: { flex: 1.2, padding: 20, borderRadius: 24, justifyContent: 'center' },
-  subText: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  fixedHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1 },
+  headerTitle: { fontSize: 24, fontWeight: '800' },
+  headerSubtitle: { fontSize: 13, fontWeight: '500', marginTop: 2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  creditsPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, gap: 6 },
+  creditsText: { fontSize: 14, fontWeight: '700' },
+  settingsButton: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  
+  gridContainer: { paddingVertical: 24 },
+  gridRow: { paddingHorizontal: 20, justifyContent: 'space-between', gap: 16 },
+  gridHeader: { marginBottom: 20 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 24, marginBottom: 20 },
+  sectionTitle: { fontSize: 20, fontWeight: '700' },
+  assetCount: { fontSize: 14, fontWeight: '600' },
+
+  subContainer: { paddingHorizontal: 20, marginBottom: 32 },
+  subBox: { flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, gap: 16 },
+  subIconRow: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.1)', alignItems: 'center', justifyContent: 'center' },
+  subTextContent: { flex: 1 },
+  subText: { fontSize: 17, fontWeight: '800', marginBottom: 2 },
   subDesc: { fontSize: 13, fontWeight: '500' },
 
-  historySection: { marginBottom: 32 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, marginBottom: 16 },
-  sectionTitle: { fontSize: 20, fontWeight: '700' },
-  seeAllText: { fontSize: 14, fontWeight: '600' },
   emptyStateContainer: { marginHorizontal: 24, padding: 32, borderRadius: 24, borderWidth: 1, alignItems: 'center', gap: 12 },
   emptyIconCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   emptyStateTitle: { fontSize: 18, fontWeight: '700' },
   emptyStateDesc: { fontSize: 14, fontWeight: '500', textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
   ctaButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 24, marginTop: 8 },
   ctaButtonText: { fontSize: 15, fontWeight: '700' },
-  historyList: { paddingHorizontal: 24, gap: 14 },
-  historyCard: { width: 160, padding: 12, borderRadius: 20, borderWidth: 1 },
-  historyImage: { width: '100%', height: 110, borderRadius: 12, marginBottom: 12, justifyContent: 'center', alignItems: 'center' },
-  historyTitle: { fontSize: 15, fontWeight: '700', marginBottom: 6 },
+
+  historyCard: { flex: 0.48, borderRadius: 20, borderWidth: 1, overflow: 'hidden', marginBottom: 16 },
+  historyImage: { width: '100%', height: 120, justifyContent: 'center', alignItems: 'center' },
+  cardActions: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', gap: 6 },
+  actionBtn: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  cardContent: { padding: 12 },
+  historyTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
   historyFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   historySubtitle: { fontSize: 12, fontWeight: '500', flex: 1 },
 
-  settingsSection: { marginBottom: 20 },
+  modalContainer: { flex: 1 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1 },
+  modalTitle: { fontSize: 20, fontWeight: '800' },
+  closeButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  modalScroll: { paddingBottom: 40 },
+  profileHeader: { alignItems: 'center', marginTop: 24, marginBottom: 32 },
+  avatarPlaceholder: { width: 90, height: 90, borderRadius: 45, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  editAvatarBadge: { position: 'absolute', bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
+  name: { fontSize: 24, fontWeight: '800', marginBottom: 6 },
+  planBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
+  planBadgeText: { fontSize: 12, fontWeight: '700' },
+
   settingsBlock: { gap: 12, paddingHorizontal: 24 },
   settingsRowContainer: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
   settingsRow: { flexDirection: 'row', alignItems: 'center', padding: 16 },
@@ -396,12 +740,78 @@ const styles = StyleSheet.create({
   
   editorContent: { marginTop: 12 },
   inputGroup: { marginBottom: 12 },
-  inputLabel: { fontSize: 12, fontWeight: '600', marginBottom: 6, marginLeft: 4, textTransform: 'uppercase' },
-  input: { padding: 14, borderRadius: 16, borderWidth: 1, fontSize: 15, fontWeight: '500' },
+  inputLabel: { fontSize: 11, fontWeight: '600', marginBottom: 6, marginLeft: 4, textTransform: 'uppercase' },
+  input: { padding: 14, borderRadius: 14, borderWidth: 1, fontSize: 15, fontWeight: '500' },
   mockEnvText: { fontSize: 14, lineHeight: 22, marginTop: 8 },
   miniButton: { padding: 12, borderRadius: 12, alignItems: 'center', marginTop: 12 },
   miniBtnText: { fontWeight: '700', fontSize: 14 },
   socialBtnRow: { flexDirection: 'row', gap: 12 },
   socialBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12 },
   socialBtnText: { fontWeight: '700', fontSize: 13 },
+  
+  settingsDivider: { height: 1, marginVertical: 8, opacity: 0.5 },
+  sectionHeaderLabel: { fontSize: 12, fontWeight: '700', marginBottom: 8, marginLeft: 4, textTransform: 'uppercase' },
+  simpleRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, borderWidth: 1, marginBottom: 8, gap: 12 },
+  simpleRowText: { flex: 1, fontSize: 15, fontWeight: '600' },
+  legalRow: { paddingVertical: 10, paddingHorizontal: 16 },
+  legalText: { fontSize: 13, fontWeight: '500', textDecorationLine: 'underline' },
+
+  headerActionGroup: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8 },
+  headerActionText: { fontSize: 16, fontWeight: '600' },
+  editProfileTrigger: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    paddingHorizontal: 16, 
+    paddingVertical: 8, 
+    borderRadius: 12, 
+    borderWidth: 1,
+    marginTop: 4 
+  },
+  editProfileTriggerText: { fontSize: 13, fontWeight: '700' },
+
+  stickyFooterContainer: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  blurWrapper: {
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20, // Account for home indicator
+    paddingTop: 16,
+    paddingHorizontal: 24,
+  },
+  footerContent: {
+    flexDirection: 'row',
+    gap: 12,
+    borderTopWidth: 1,
+    paddingTop: 16,
+  },
+  cancelFooterBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelFooterBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  saveFooterBtn: {
+    flex: 2,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  saveFooterBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
 });

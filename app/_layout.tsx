@@ -3,11 +3,17 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
+import { useAuth } from '@/hooks/use-auth';
 import { configurePurchases } from '@/lib/purchases';
 import * as Notifications from 'expo-notifications';
 import { NotificationService } from '@/services/notificationService';
+
+// Prevent splash screen from hiding automatically
+SplashScreen.preventAutoHideAsync();
 
 // Configure how notifications are handled when the app is in the foreground
 Notifications.setNotificationHandler({
@@ -24,7 +30,9 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'dark';
+  const theme = Colors[colorScheme];
+  const { loading: authLoading } = useAuth();
 
   useEffect(() => {
     configurePurchases();
@@ -32,13 +40,38 @@ export default function RootLayout() {
     NotificationService.requestPermissions();
   }, []);
 
+  useEffect(() => {
+    if (!authLoading) {
+      SplashScreen.hideAsync();
+    }
+  }, [authLoading]);
+
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack 
+        screenOptions={{ 
+          headerShown: false,
+          contentStyle: { backgroundColor: theme.background } 
+        }}
+      >
         <Stack.Screen name="index" options={{ title: 'Welcome' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="paywall" options={{ presentation: 'fullScreenModal', headerShown: false }} />
-        <Stack.Screen name="template/[id]" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+        <Stack.Screen 
+          name="paywall" 
+          options={{ 
+            presentation: 'fullScreenModal', 
+            headerShown: false,
+            contentStyle: { backgroundColor: theme.background }
+          }} 
+        />
+        <Stack.Screen 
+          name="template/[id]" 
+          options={{ 
+            presentation: 'fullScreenModal', 
+            headerShown: false,
+            contentStyle: { backgroundColor: theme.background }
+          }} 
+        />
         <Stack.Screen name="category/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

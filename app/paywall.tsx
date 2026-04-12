@@ -13,6 +13,8 @@ import { ENTITLEMENT_ID } from '@/lib/purchases';
 import { StorageService } from '@/services/storageService';
 import { NotificationService } from '@/services/notificationService';
 import { usePurchases } from '@/hooks/use-purchases';
+import { supabase } from '@/lib/supabase';
+import { CreditService } from '@/services/creditService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -31,7 +33,8 @@ export default function PaywallScreen() {
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<PurchasesPackage | null>(null);
-  const { isPro } = usePurchases();
+  const [paywallType, setPaywallType] = useState<'plans' | 'credits'>('plans');
+  const { isPro, customerInfo } = usePurchases();
 
   // Animation assets
   const scale = useSharedValue(1);
@@ -79,8 +82,9 @@ export default function PaywallScreen() {
       const offerings = await Purchases.getOfferings();
       if (offerings.current !== null) {
         setOffering(offerings.current);
-        const initial = offerings.current.annual || offerings.current.monthly || offerings.current.availablePackages[0];
-        setSelectedPackage(initial);
+        // Default selection logic
+        const pkg = offerings.current.annual || offerings.current.monthly || offerings.current.availablePackages[0];
+        setSelectedPackage(pkg);
       }
     } catch (e) {
       console.error('[Paywall] Fetch offerings failed:', e);
@@ -94,8 +98,34 @@ export default function PaywallScreen() {
     setIsPurchasing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const { customerInfo } = await Purchases.purchasePackage(selectedPackage);
-      if (typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== 'undefined') {
+      const { customerInfo: updatedInfo } = await Purchases.purchasePackage(selectedPackage);
+      
+      // ── Credit Grant Logic ──
+      const getCreditsForPackage = (pkg: PurchasesPackage) => {
+        if (pkg.packageType === 'MONTHLY') return 100;
+        if (pkg.packageType === 'ANNUAL') return 1500;
+        
+        const id = pkg.identifier.toLowerCase();
+        if (id.includes('10000')) return 10000;
+        if (id.includes('5000')) return 5000;
+        if (id.includes('2500')) return 2500;
+        if (id.includes('1500')) return 1500;
+        if (id.includes('1000')) return 1000;
+        if (id.includes('500')) return 500;
+        if (id.includes('250')) return 250;
+        if (id.includes('200')) return 200;
+        if (id.includes('100')) return 100;
+        if (id.includes('50')) return 50;
+        return 0;
+      };
+
+      const creditsToGrant = getCreditsForPackage(selectedPackage);
+
+      if (creditsToGrant > 0) {
+        await supabase.rpc('add_credits', { amount_to_add: creditsToGrant });
+      }
+
+      if (updatedInfo.entitlements.active[ENTITLEMENT_ID] !== undefined || creditsToGrant > 0) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.back();
       }
@@ -224,12 +254,50 @@ export default function PaywallScreen() {
           ))}
         </View>
 
+        {/* Paywall Type Toggle */}
+        <View style={[styles.toggleContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Pressable 
+            style={[styles.toggleBtn, paywallType === 'plans' && { backgroundColor: theme.primary }]}
+            onPress={() => { setPaywallType('plans'); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+          >
+            <Text style={[styles.toggleBtnText, { color: paywallType === 'plans' ? theme.background : theme.text }]}>Plans</Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.toggleBtn, paywallType === 'credits' && { backgroundColor: theme.primary }]}
+            onPress={() => { setPaywallType('credits'); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+          >
+            <Text style={[styles.toggleBtnText, { color: paywallType === 'credits' ? theme.background : theme.text }]}>Credit Packs</Text>
+          </Pressable>
+        </View>
+
         {/* Offerings - Stacked but compact */}
         <View style={styles.offeringContainer}>
-          {offering?.availablePackages.map((pkg, index) => {
+          {offering?.availablePackages
+            .filter(pkg => {
+              const isRecur = pkg.packageType === 'ANNUAL' || pkg.packageType === 'MONTHLY' || pkg.packageType === 'WEEKLY';
+              return paywallType === 'plans' ? isRecur : !isRecur;
+            })
+            .map((pkg, index) => {
             const isSelected = selectedPackage?.identifier === pkg.identifier;
             const isYearly = pkg.packageType === 'ANNUAL';
+            const isMonthly = pkg.packageType === 'MONTHLY';
             const fullPrice = calculateFullPrice(pkg);
+            
+            // Credit amount for label/badge
+            const getCreditsLabel = (pkg: PurchasesPackage) => {
+              if (pkg.packageType === 'ANNUAL') return "1,500";
+              if (pkg.packageType === 'MONTHLY') return "100";
+              
+              const id = pkg.identifier.toLowerCase();
+              if (id.includes('5000')) return "5.0k";
+              if (id.includes('1500')) return "1.5k";
+              if (id.includes('500')) return "500";
+              if (id.includes('200')) return "200";
+              if (id.includes('50')) return "50";
+              return "0";
+            };
+
+            const credits = getCreditsLabel(pkg);
 
             return (
               <Animated.View key={pkg.identifier} entering={FadeInUp.delay(600 + index * 100).duration(400)}>
@@ -262,13 +330,13 @@ export default function PaywallScreen() {
                   <View style={[styles.creditBadge, { backgroundColor: theme.warning, borderColor: theme.background }]}>
                     <Ionicons name="flash" size={10} color={theme.background} />
                     <Text style={[styles.creditBadgeText, { color: theme.background }]}>
-                      {isYearly ? "1,500" : "100"}
+                      {credits}
                     </Text>
                   </View>
 
                   <View style={styles.packageInfo}>
                     <Text style={[styles.packageTitle, { color: theme.text }]}>
-                      {isYearly ? "Annual Plan" : "Monthly Plan"}
+                      {isYearly ? "Annual Plan" : (isMonthly ? "Monthly Plan" : `${credits} Credits`)}
                     </Text>
                     {isYearly && (
                       <Text style={[styles.trialLabel, { color: theme.text, opacity: 0.8 }]}>
@@ -276,7 +344,11 @@ export default function PaywallScreen() {
                       </Text>
                     )}
                     <Text style={[styles.packageSubtitle, { color: theme.icon }]}>
-                      {isYearly ? "Best Value • Cancel anytime" : "Flexible • Cancel anytime"}
+                      {isYearly ? "Best Value • Unlimited potential" : 
+                       (isMonthly ? "Flexible • Start creating" : 
+                       (parseInt(credits.replace(/,/g, '')) >= 5000 ? "Agency Gear • Bulk discount" : 
+                        parseInt(credits.replace(/,/g, '')) >= 1000 ? "Pro Bundle • Professional choice" :
+                        "One-time purchase • Quick start"))}
                     </Text>
                   </View>
                   
@@ -320,7 +392,9 @@ export default function PaywallScreen() {
               {isPurchasing ? (
                 <ActivityIndicator color={theme.background} />
               ) : (
-                <Text style={[styles.purchaseBtnText, { color: theme.background }]}>Start Subscription</Text>
+                <Text style={[styles.purchaseBtnText, { color: theme.background }]}>
+                  {paywallType === 'plans' ? 'Start Subscription' : 'Buy Credits Pack'}
+                </Text>
               )}
             </Pressable>
           </Animated.View>
@@ -334,34 +408,6 @@ export default function PaywallScreen() {
               <Text style={[styles.footerLink, { color: theme.icon }]}>Terms & Privacy</Text>
             </Pressable>
           </View>
-
-          {__DEV__ && (
-            <View style={styles.devRow}>
-              <Pressable 
-                onPress={async () => {
-                  const current = await StorageService.getDevProBypass();
-                  await StorageService.setDevProBypass(!current);
-                  Alert.alert("Dev Mode", `Subscription bypass ${!current ? 'ENABLED' : 'DISABLED'}. Please restart the app.`);
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                }}
-                style={[styles.devBypassBtn, { borderColor: theme.accent }]}
-              >
-                <Text style={[styles.devBypassText, { color: theme.accent }]}>
-                  {isPro ? 'Dev: Remove Pro' : 'Dev: Activate Pro'}
-                </Text>
-              </Pressable>
-
-              <Pressable 
-                onPress={async () => {
-                  await NotificationService.sendTestNotification();
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                }}
-                style={[styles.devBypassBtn, { borderColor: theme.success }]}
-              >
-                <Text style={[styles.devBypassText, { color: theme.success }]}>Dev: Test Notif</Text>
-              </Pressable>
-            </View>
-          )}
         </View>
 
       </View>
@@ -374,14 +420,18 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { flex: 1, paddingHorizontal: 24, paddingVertical: 12 },
   
-  closeBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1, alignSelf: 'flex-end', marginBottom: 8 },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1, alignSelf: 'flex-end', marginTop: 32, marginBottom: 8 },
   
-  header: { alignItems: 'center', marginBottom: 12 },
+  header: { alignItems: 'center', marginBottom: 16 },
   logo: { width: 60, height: 60, marginBottom: 12 },
   title: { fontSize: 28, fontWeight: '800', textAlign: 'center', marginBottom: 6 },
   subtitle: { fontSize: 15, textAlign: 'center', fontWeight: '500' },
 
-  featuresContainer: { gap: 12, marginBottom: 20, paddingHorizontal: 8 },
+  toggleContainer: { flexDirection: 'row', padding: 4, borderRadius: 12, borderWidth: 1, marginBottom: 20 },
+  toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
+  toggleBtnText: { fontSize: 13, fontWeight: '700' },
+
+  featuresContainer: { gap: 12, marginBottom: 16, paddingHorizontal: 8 },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   featureText: { fontSize: 14, fontWeight: '500' },
 

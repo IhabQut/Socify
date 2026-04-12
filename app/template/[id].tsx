@@ -11,6 +11,10 @@ import React, { useEffect, useState } from 'react';
 import { Dimensions, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown, FadeInUp, Layout, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CreditService } from '@/services/creditService';
+import { BlurView } from 'expo-blur';
+import { Alert } from 'react-native';
+import { useAuth } from '@/hooks/use-auth';
 
 const { width, height } = Dimensions.get('window');
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -92,12 +96,14 @@ const PickerSheet = ({ visible, onClose, onCamera, onLibrary, theme }: any) => (
 );
 
 // ── Requirement Input Block ──────────────────────────────────────
-const RequirementInput = ({ req, theme, isLast }: any) => {
+const RequirementInput = ({ req, theme, isLast, value, onValueChange }: any) => {
     const scale = useSharedValue(1);
     const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-    const [value, setValue] = useState('');
-    const [pickedUri, setPickedUri] = useState<string | null>(null);
     const [showSheet, setShowSheet] = useState(false);
+    
+    // Determine internal state based on parent value if it's a URI
+    const pickedUri = (req.type === 'photo' || req.type === 'video') ? value : null;
+    const textValue = req.type === 'text' ? value : '';
 
     const requestAndPick = async (useCamera: boolean) => {
         setShowSheet(false);
@@ -115,7 +121,7 @@ const RequirementInput = ({ req, theme, isLast }: any) => {
                 aspect: [4, 3],
             });
             if (!result.canceled && result.assets[0]) {
-                setPickedUri(result.assets[0].uri);
+                onValueChange(result.assets[0].uri);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
         } else {
@@ -130,7 +136,7 @@ const RequirementInput = ({ req, theme, isLast }: any) => {
                 aspect: [4, 3],
             });
             if (!result.canceled && result.assets[0]) {
-                setPickedUri(result.assets[0].uri);
+                onValueChange(result.assets[0].uri);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             }
         }
@@ -162,7 +168,7 @@ const RequirementInput = ({ req, theme, isLast }: any) => {
                     {req.description && <Text style={[styles.reqDesc, { color: theme.icon }]}>{req.description}</Text>}
                 </View>
                 {pickedUri && (
-                    <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPickedUri(null); }} hitSlop={10}>
+                    <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onValueChange(null); }} hitSlop={10}>
                         <Ionicons name="close-circle" size={22} color={theme.danger} />
                     </Pressable>
                 )}
@@ -206,8 +212,8 @@ const RequirementInput = ({ req, theme, isLast }: any) => {
                     style={[styles.textInput, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
                     placeholder="Enter text here..."
                     placeholderTextColor={theme.icon}
-                    value={value}
-                    onChangeText={setValue}
+                    value={textValue}
+                    onChangeText={onValueChange}
                 />
             )}
         </Animated.View>
@@ -221,9 +227,15 @@ export default function TemplateExecutionScreen() {
     const theme = Colors[colorScheme];
     const insets = useSafeAreaInsets();
     const { isPro } = usePurchases();
+    const { profile } = useAuth();
 
     const [template, setTemplate] = useState<DesignTemplate | null>(null);
+    const [responses, setResponses] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
+
+    const handleValueChange = (id: string, value: string | null) => {
+        setResponses(prev => ({ ...prev, [id]: value || '' }));
+    };
 
     useEffect(() => {
         async function fetchTemplate() {
@@ -235,9 +247,11 @@ export default function TemplateExecutionScreen() {
                 .single();
 
             if (data) {
-                // Pro Gating Check
+                // Check if user has access (Pro or has credits)
                 const isPremium = data.is_pro || data.pro;
-                if (isPremium && !isPro) {
+                const hasCredits = (profile?.credits ?? 0) >= 5; // Base cost check
+                
+                if (isPremium && !isPro && !hasCredits) {
                     router.replace('/paywall');
                     return;
                 }
@@ -254,19 +268,26 @@ export default function TemplateExecutionScreen() {
 
     const [aiCaption, setAiCaption] = useState(true);
     const [generationStyle, setGenerationStyle] = useState('Realistic');
+    const [batchSize, setBatchSize] = useState(1);
+    
+    const totalCost = 5 * batchSize;
+    const isReady = template?.requirements?.every(req => !!responses[req.id]) ?? false;
 
     const ctaScale = useSharedValue(1);
     const ctaAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: ctaScale.value }] }));
 
-    if (loading || !template) return null;
+    if (loading || !template) {
+        return <View style={{ flex: 1, backgroundColor: theme.background }} />;
+    }
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[styles.container, { backgroundColor: theme.background }]}>
+                <Animated.View entering={FadeIn.duration(400)} style={{ flex: 1 }}>
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} bounces={false}>
 
                     {/* Header / Video Preview Hero */}
-                    <Animated.View entering={FadeIn.duration(800)} style={[styles.heroSection, { backgroundColor: theme.card, paddingTop: insets.top, borderBottomColor: theme.border }]}>
+                    <View style={[styles.heroSection, { backgroundColor: theme.card, paddingTop: insets.top, borderBottomColor: theme.border }]}>
                         {/* Back Button */}
                         <Pressable style={styles.closeButton} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}>
                             <Ionicons name="close-circle" size={32} color={theme.icon} />
@@ -281,10 +302,10 @@ export default function TemplateExecutionScreen() {
                             <Text style={[styles.heroCategory, { color: theme.primary }]}>{template.category}</Text>
                             <Text style={[styles.heroTitle, { color: theme.text }]}>{template.title}</Text>
                         </View>
-                    </Animated.View>
+                    </View>
 
                     {/* Inputs Section */}
-                    <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.section}>
+                    <View style={styles.section}>
                         <Text style={[styles.sectionTitle, { color: theme.text }]}>Template Assets ({template.requirements?.length || 0})</Text>
 
                         <View style={[styles.cardContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -293,14 +314,16 @@ export default function TemplateExecutionScreen() {
                                     key={req.id}
                                     req={req}
                                     theme={theme}
+                                    value={responses[req.id]}
+                                    onValueChange={(val: any) => handleValueChange(req.id, val)}
                                     isLast={index === (template.requirements?.length ?? 0) - 1}
                                 />
                             ))}
                         </View>
-                    </Animated.View>
+                    </View>
 
                     {/* Preferences Section */}
-                    <Animated.View entering={FadeInUp.delay(300).duration(600)} style={styles.section}>
+                    <View style={styles.section}>
                         <Text style={[styles.sectionTitle, { color: theme.text }]}>AI Preferences</Text>
 
                         <View style={[styles.cardContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -320,7 +343,7 @@ export default function TemplateExecutionScreen() {
                             </View>
 
                             {/* Style Segmentation */}
-                            <View style={styles.prefRowVert}>
+                            <View style={[styles.prefRowVert, { borderBottomWidth: 1, borderBottomColor: theme.border }]}>
                                 <View style={[styles.prefInfo, { marginBottom: 12 }]}>
                                     <Text style={[styles.prefTitle, { color: theme.text }]}>Visual Style</Text>
                                     <Text style={[styles.prefDesc, { color: theme.icon }]}>How should the AI render the final visuals?</Text>
@@ -338,35 +361,85 @@ export default function TemplateExecutionScreen() {
                                 </View>
                             </View>
 
-                        </View>
-                    </Animated.View>
+                            {/* Batch Size / Variation Count */}
+                            <View style={styles.prefRow}>
+                                <View style={styles.prefInfo}>
+                                    <Text style={[styles.prefTitle, { color: theme.text }]}>Variations</Text>
+                                    <Text style={[styles.prefDesc, { color: theme.icon }]}>Generate multiple versions at once</Text>
+                                </View>
+                                <View style={styles.batchControl}>
+                                    <Pressable 
+                                        style={[styles.batchBtn, { borderColor: theme.border }]} 
+                                        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBatchSize(Math.max(1, batchSize - 1)); }}
+                                    >
+                                        <Ionicons name="remove" size={18} color={theme.text} />
+                                    </Pressable>
+                                    <Text style={[styles.batchVal, { color: theme.text }]}>{batchSize}</Text>
+                                    <Pressable 
+                                        style={[styles.batchBtn, { borderColor: theme.border }]} 
+                                        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setBatchSize(Math.min(4, batchSize + 1)); }}
+                                    >
+                                        <Ionicons name="add" size={18} color={theme.text} />
+                                    </Pressable>
+                                </View>
+                            </View>
 
-                    {/* Spacer for bottom bar */}
-                    <View style={{ height: 100 }} />
-                </ScrollView>
-
-                {/* Sticky Action Bar */}
-                <Animated.View entering={FadeInDown.delay(400).duration(500)} style={[styles.actionBar, { backgroundColor: theme.card, borderTopColor: theme.border, paddingBottom: insets.bottom || 24 }]}>
-                    <View style={styles.creditsCost}>
-                        <Text style={[styles.costLabel, { color: theme.icon }]}>Cost</Text>
-                        <View style={styles.costBadge}>
-                            <Ionicons name="flash" size={14} color={theme.warning} />
-                            <Text style={[styles.costValue, { color: theme.text }]}>5</Text>
                         </View>
                     </View>
 
-                    <AnimatedPressable
-                        style={[styles.createBtn, ctaAnimatedStyle, { backgroundColor: theme.primary }]}
-                        onPressIn={() => { ctaScale.value = withSpring(0.95); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                        onPressOut={() => ctaScale.value = withSpring(1)}
-                        onPress={async () => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                    {/* Spacer for bottom bar */}
+                    <View style={{ height: 120 }} />
+                </ScrollView>
+
+                {/* Sticky Action Bar */}
+                <Animated.View 
+                  entering={FadeInDown.duration(400)} 
+                  style={styles.actionBarContainer}
+                >
+                  <BlurView intensity={Platform.OS === 'ios' ? 80 : 100} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={[styles.blurWrapper, { paddingBottom: insets.bottom || 24 }]}>
+                    <View style={[styles.actionBarInner, { borderTopColor: theme.border }]}>
+                        <View style={styles.creditsCost}>
+                            <Text style={[styles.costLabel, { color: theme.icon }]}>Cost</Text>
+                            <View style={styles.costBadge}>
+                                <Ionicons name="flash" size={14} color={theme.warning} />
+                                <Text style={[styles.costValue, { color: theme.text }]}>{totalCost}</Text>
+                            </View>
+                        </View>
+
+                        <AnimatedPressable
+                            style={[
+                                styles.createBtn, 
+                                ctaAnimatedStyle, 
+                                { backgroundColor: isReady ? theme.primary : theme.card, opacity: isReady ? 1 : 0.7 }
+                            ]}
+                            onPressIn={() => { if (isReady) ctaScale.value = withSpring(0.95); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                            onPressOut={() => { ctaScale.value = withSpring(1); }}
+                            onPress={async () => {
+                                if (!isReady) {
+                                    Alert.alert("Required Inputs", "Please complete all template requirements before generating.");
+                                    return;
+                                }
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+                            // ── Credit Deduction ──
+                            // Hardened Check: If isPro is true from RevenueCat, skip the local alert check
+                            // The server-side RPC (deduct_credits) is the final source of truth for security.
+                            const creditRes = await CreditService.deductCredits(totalCost);
+                            
+                            if (!creditRes.success && !isPro) {
+                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                                Alert.alert("Insufficient Credits", `Generating these variation(s) costs ${totalCost} credits.`, [
+                                    { text: "Cancel", style: "cancel" },
+                                    { text: "Buy Credits", onPress: () => router.push('/paywall') }
+                                ]);
+                                return;
+                            }
 
                             if (template.id !== 'default') {
                                 const { error } = await supabase.from('generated_assets').insert({
                                     template_id: template.id,
                                     title: `${template.title} Output`,
-                                    prompt: `Style: ${generationStyle}, Captions: ${aiCaption}`,
+                                    prompt: `Style: ${generationStyle}, Captions: ${aiCaption}, Variants: ${batchSize}`,
                                     asset_type: 'image'
                                 });
                                 if (error) console.error("Error creating asset", error);
@@ -376,9 +449,14 @@ export default function TemplateExecutionScreen() {
                             setTimeout(() => { router.back(); }, 1500);
                         }}
                     >
-                        <Ionicons name="color-wand" size={20} color={theme.background} />
-                        <Text style={[styles.createBtnText, { color: theme.background }]}>Generate Asset</Text>
+                        <Ionicons name={isReady ? "color-wand" : "lock-closed"} size={20} color={isReady ? theme.background : theme.icon} />
+                        <Text style={[styles.createBtnText, { color: isReady ? theme.background : theme.icon }]}>
+                            {isReady ? "Generate Asset" : "Fill Requirements"}
+                        </Text>
                     </AnimatedPressable>
+                  </View>
+                </BlurView>
+                </Animated.View>
                 </Animated.View>
 
             </View>
@@ -447,11 +525,29 @@ const styles = StyleSheet.create({
     segment: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
     segmentText: { fontSize: 13, fontWeight: '600' },
 
-    actionBar: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
+    actionBarContainer: {
+        position: 'absolute',
+        bottom: 0,
+        width: '100%',
+    },
+    blurWrapper: {
+        paddingTop: 16,
+        paddingHorizontal: 20,
+    },
+    actionBarInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderTopWidth: 1,
+        paddingTop: 16,
+    },
     creditsCost: { marginRight: 24 },
     costLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase' },
     costBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     costValue: { fontSize: 18, fontWeight: '800' },
-    createBtn: { flex: 1, flexDirection: 'row', height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', gap: 8 },
-    createBtnText: { fontSize: 16, fontWeight: '700' }
+    createBtn: { flex: 1, flexDirection: 'row', height: 58, borderRadius: 29, justifyContent: 'center', alignItems: 'center', gap: 8 },
+    createBtnText: { fontSize: 16, fontWeight: '800' },
+
+    batchControl: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    batchBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+    batchVal: { fontSize: 16, fontWeight: '800', width: 14, textAlign: 'center' },
 });

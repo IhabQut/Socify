@@ -8,7 +8,6 @@ const CREDITS_KEY = '@socify_credits';
 const PLAN_START_KEY = '@socify_plan_start';
 const COMPLETED_DAYS_KEY = '@socify_completed_days';
 const WEEKLY_BONUS_CLAIMED_KEY = '@socify_weekly_bonus_claimed';
-const DEV_PRO_BYPASS_KEY = '@socify_dev_pro_bypass';
 const COMPLETED_TASKS_KEY = '@socify_completed_tasks';
 
 export interface UserProfile {
@@ -178,19 +177,6 @@ export class StorageService {
   static async setWeeklyBonusClaimed(weekIndex: number) {
     try {
       await AsyncStorage.setItem(`${WEEKLY_BONUS_CLAIMED_KEY}_${weekIndex}`, 'true');
-    } catch (e) { console.warn("Storage Error:", e); }
-  }
-
-  static async getDevProBypass(): Promise<boolean> {
-    try {
-      const val = await AsyncStorage.getItem(DEV_PRO_BYPASS_KEY);
-      return val === 'true';
-    } catch { return false; }
-  }
-
-  static async setDevProBypass(enabled: boolean) {
-    try {
-      await AsyncStorage.setItem(DEV_PRO_BYPASS_KEY, enabled ? 'true' : 'false');
     } catch (e) { console.warn("Storage Error:", e); }
   }
 }
