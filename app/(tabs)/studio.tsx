@@ -133,7 +133,7 @@ export default function StudioScreen() {
   const subAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: subScale.value }] }));
 
   // --- Get credits from profile
-  const creditsDisplay = isPro ? '∞' : (profile?.credits ?? '0');
+  const creditsDisplay = profile?.credits ?? '0';
   const planLabel = isPro ? 'Socify Pro ✦' : 'Free Plan';
 
   const handleOpenPaywall = () => {
@@ -232,6 +232,28 @@ export default function StudioScreen() {
         }
       ]
     );
+  };
+
+  const handleResetPro = async () => {
+    if (!profile) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ is_pro: false, credits: 0 })
+        .eq('id', profile.id);
+      
+      if (error) throw error;
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Reset Success", "Your account has been reset to Free plan with 0 credits.");
+      await refreshSub();
+      await fetchAssets();
+    } catch (e) {
+      Alert.alert("Error", "Could not reset profile.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleRateApp = () => {
@@ -611,6 +633,30 @@ export default function StudioScreen() {
                   )}
                 </Pressable>
               </ExpandableSettingsRow>
+
+              {__DEV__ && (
+                <>
+                  <View style={styles.settingsDivider} />
+                  <Text style={[styles.sectionHeaderLabel, { color: theme.accent }]}>Developer Tools (Internal)</Text>
+                  
+                  <ExpandableSettingsRow icon="bug-outline" title="Debug Account State" description="Force reset subscription & credits" theme={theme}>
+                    <Text style={[styles.mockEnvText, { color: theme.text, marginBottom: 12 }]}>
+                      Use this to test the Free/Pro transitions. This bypasses RevenueCat local cache and updates the database directly.
+                    </Text>
+                    <Pressable
+                      style={[styles.miniButton, { backgroundColor: theme.danger }]}
+                      onPress={() => {
+                        Alert.alert("Force Reset", "This will set is_pro to false and credits to 0 in Supabase. Continue?", [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Force Reset", style: "destructive", onPress: handleResetPro }
+                        ]);
+                      }}
+                    >
+                      <Text style={[styles.miniBtnText, { color: theme.white }]}>Force Reset to Free Plan</Text>
+                    </Pressable>
+                  </ExpandableSettingsRow>
+                </>
+              )}
 
               <View style={styles.settingsDivider} />
               <Text style={[styles.sectionHeaderLabel, { color: theme.icon }]}>Help & Growth</Text>

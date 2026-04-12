@@ -45,7 +45,6 @@ export class CreditService {
       .single();
 
     if (error || !data) return false;
-    if (data.is_pro) return true;
     return data.credits >= required;
   }
 }

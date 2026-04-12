@@ -251,7 +251,7 @@ export default function TemplateExecutionScreen() {
                 const isPremium = data.is_pro || data.pro;
                 const hasCredits = (profile?.credits ?? 0) >= 5; // Base cost check
                 
-                if (isPremium && !isPro && !hasCredits) {
+                if (isPremium && !hasCredits) {
                     router.replace('/paywall');
                     return;
                 }
@@ -426,7 +426,7 @@ export default function TemplateExecutionScreen() {
                             // The server-side RPC (deduct_credits) is the final source of truth for security.
                             const creditRes = await CreditService.deductCredits(totalCost);
                             
-                            if (!creditRes.success && !isPro) {
+                            if (!creditRes.success) {
                                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                                 Alert.alert("Insufficient Credits", `Generating these variation(s) costs ${totalCost} credits.`, [
                                     { text: "Cancel", style: "cancel" },

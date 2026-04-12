@@ -101,7 +101,7 @@ export default function CreativeScreen() {
   }));
 
   // Credits logic
-  const creditsDisplay = isPro ? '∞' : (profile?.credits ?? '0');
+  const creditsDisplay = profile?.credits ?? '0';
 
   // Debounce search input
   useEffect(() => {
@@ -352,10 +352,6 @@ const styles = StyleSheet.create({
   appHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   appName: { fontSize: 26, fontWeight: '900', letterSpacing: -1 },
-  removeProBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', marginLeft: 4 },
-  removeProText: { fontSize: 10, fontWeight: '800' },
-  devToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed' },
-  devToggleText: { fontSize: 10, fontWeight: '800' },
   creditsPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, gap: 4 },
   creditsText: { fontSize: 14, fontWeight: '700' },
   searchContainer: { paddingHorizontal: 24, marginBottom: 24 },

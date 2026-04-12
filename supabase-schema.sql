@@ -223,12 +223,7 @@ BEGIN
     FROM public.users 
     WHERE id = auth.uid();
 
-    -- Pro users have infinite credits
-    IF user_is_pro THEN
-        RETURN jsonb_build_object('success', true, 'remaining', 999999);
-    END IF;
-
-    -- Check balance
+    -- Check balance (Pro users no longer have unlimited credits)
     IF current_credits < amount_to_deduct THEN
         RETURN jsonb_build_object('success', false, 'error', 'Insufficient credits');
     END IF;

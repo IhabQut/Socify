@@ -80,11 +80,32 @@ export default function PaywallScreen() {
   const fetchOfferings = async () => {
     try {
       const offerings = await Purchases.getOfferings();
-      if (offerings.current !== null) {
-        setOffering(offerings.current);
-        // Default selection logic
-        const pkg = offerings.current.annual || offerings.current.monthly || offerings.current.availablePackages[0];
+      console.log('[Paywall] All Offerings:', Object.keys(offerings.all));
+      
+      // 1. Try to find the best offering to display
+      // Prefer 'current', but if empty/null, try to find any that has packages
+      let bestOffering = offerings.current;
+      
+      if (!bestOffering || bestOffering.availablePackages.length === 0) {
+        const allOfferings = Object.values(offerings.all);
+        bestOffering = allOfferings.find(o => o.availablePackages.length > 0) || null;
+      }
+      
+      if (bestOffering) {
+        setOffering(bestOffering);
+        
+        // 2. Default selection logic
+        // If we're starting on 'plans', prefer annual/monthly
+        const pkg = bestOffering.annual || bestOffering.monthly || bestOffering.availablePackages[0];
         setSelectedPackage(pkg);
+        
+        // If the default package is NOT a recurring one, set tab to 'credits'
+        const isRecur = pkg.packageType === 'ANNUAL' || pkg.packageType === 'MONTHLY' || pkg.packageType === 'WEEKLY' || pkg.packageType === 'SIX_MONTH' || pkg.packageType === 'THREE_MONTH' || pkg.packageType === 'TWO_MONTH';
+        if (!isRecur && paywallType === 'plans') {
+          setPaywallType('credits');
+        }
+      } else {
+        console.warn('[Paywall] No offerings with packages found.');
       }
     } catch (e) {
       console.error('[Paywall] Fetch offerings failed:', e);
@@ -106,6 +127,11 @@ export default function PaywallScreen() {
         if (pkg.packageType === 'ANNUAL') return 1500;
         
         const id = pkg.identifier.toLowerCase();
+        
+        // Try to extract number from identifier (e.g. Agency_1000 -> 1000)
+        const match = id.match(/(\d+)/);
+        if (match) return parseInt(match[0]);
+
         if (id.includes('10000')) return 10000;
         if (id.includes('5000')) return 5000;
         if (id.includes('2500')) return 2500;
@@ -258,13 +284,25 @@ export default function PaywallScreen() {
         <View style={[styles.toggleContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Pressable 
             style={[styles.toggleBtn, paywallType === 'plans' && { backgroundColor: theme.primary }]}
-            onPress={() => { setPaywallType('plans'); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            onPress={() => { 
+              setPaywallType('plans'); 
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              // Auto-select first plan if current selection is a credit pack
+              const firstPlan = offering?.availablePackages.find(p => ['ANNUAL', 'MONTHLY', 'WEEKLY', 'SIX_MONTH', 'THREE_MONTH', 'TWO_MONTH'].includes(p.packageType));
+              if (firstPlan) setSelectedPackage(firstPlan);
+            }}
           >
             <Text style={[styles.toggleBtnText, { color: paywallType === 'plans' ? theme.background : theme.text }]}>Plans</Text>
           </Pressable>
           <Pressable 
             style={[styles.toggleBtn, paywallType === 'credits' && { backgroundColor: theme.primary }]}
-            onPress={() => { setPaywallType('credits'); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            onPress={() => { 
+              setPaywallType('credits'); 
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              // Auto-select first credit pack if current selection is a recurring plan
+              const firstCredit = offering?.availablePackages.find(p => !['ANNUAL', 'MONTHLY', 'WEEKLY', 'SIX_MONTH', 'THREE_MONTH', 'TWO_MONTH'].includes(p.packageType));
+              if (firstCredit) setSelectedPackage(firstCredit);
+            }}
           >
             <Text style={[styles.toggleBtnText, { color: paywallType === 'credits' ? theme.background : theme.text }]}>Credit Packs</Text>
           </Pressable>
@@ -274,7 +312,7 @@ export default function PaywallScreen() {
         <View style={styles.offeringContainer}>
           {offering?.availablePackages
             .filter(pkg => {
-              const isRecur = pkg.packageType === 'ANNUAL' || pkg.packageType === 'MONTHLY' || pkg.packageType === 'WEEKLY';
+              const isRecur = ['ANNUAL', 'MONTHLY', 'WEEKLY', 'SIX_MONTH', 'THREE_MONTH', 'TWO_MONTH'].includes(pkg.packageType);
               return paywallType === 'plans' ? isRecur : !isRecur;
             })
             .map((pkg, index) => {
@@ -289,12 +327,21 @@ export default function PaywallScreen() {
               if (pkg.packageType === 'MONTHLY') return "100";
               
               const id = pkg.identifier.toLowerCase();
+              
+              // Extract number from identifier for custom patterns (like Agency_1000)
+              const match = id.match(/(\d+)/);
+              if (match) {
+                const num = parseInt(match[0]);
+                if (num >= 1000) return (num / 1000).toFixed(num % 1000 === 0 ? 0 : 1) + "k";
+                return num.toString();
+              }
+
               if (id.includes('5000')) return "5.0k";
               if (id.includes('1500')) return "1.5k";
               if (id.includes('500')) return "500";
               if (id.includes('200')) return "200";
               if (id.includes('50')) return "50";
-              return "0";
+              return "Pack";
             };
 
             const credits = getCreditsLabel(pkg);
