@@ -50,6 +50,7 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [brands, setBrands] = useState<BrandData[]>([]);
+  const [brandPlatforms, setBrandPlatforms] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const identifiedUserId = useRef<string | null>(null);
 
@@ -80,6 +81,7 @@ export function useAuth() {
       } else {
         setProfile(null);
         setBrands([]);
+        setBrandPlatforms([]);
         setLoading(false);
         identifiedUserId.current = null;
       }
@@ -117,6 +119,19 @@ export function useAuth() {
         
       if (bData) {
         setBrands(bData);
+        
+        // 3. Fetch Platforms for Default Brand
+        const defaultId = bData.find(b => b.is_default)?.id || bData[0]?.id;
+        if (defaultId) {
+          const { data: pData } = await supabase
+            .from('brand_platforms')
+            .select('platform_id')
+            .eq('brand_id', defaultId);
+          
+          if (pData) {
+            setBrandPlatforms(pData.map(p => p.platform_id));
+          }
+        }
       }
 
     } catch (e) {
@@ -271,6 +286,7 @@ export function useAuth() {
     await supabase.auth.signOut();
     setProfile(null);
     setBrands([]);
+    setBrandPlatforms([]);
     setUser(null);
     setSession(null);
     identifiedUserId.current = null;
@@ -307,7 +323,8 @@ export function useAuth() {
     if (!defaultBrandId) return { error: new Error('No brand found') };
 
     // 1. Clear old platforms
-    await supabase.from('brand_platforms').delete().eq('brand_id', defaultBrandId);
+    const { error: delError } = await supabase.from('brand_platforms').delete().eq('brand_id', defaultBrandId);
+    if (delError) return { error: delError };
 
     // 2. Insert new platforms
     if (platformIds.length > 0) {
@@ -315,7 +332,8 @@ export function useAuth() {
         brand_id: defaultBrandId,
         platform_id: pid
       }));
-      await supabase.from('brand_platforms').insert(inserts);
+      const { error: insError } = await supabase.from('brand_platforms').insert(inserts);
+      if (insError) return { error: insError };
     }
     
     return { error: null };
@@ -326,12 +344,16 @@ export function useAuth() {
     user,
     profile,
     brands,
+    brandPlatforms,
     defaultBrand: brands.find(b => b.is_default) || brands[0] || null,
     loading,
     signInGuest,
     completeOnboarding,
     linkAccount,
     signOut,
+    updateProfile,
+    updateDefaultBrand,
+    updateBrandPlatforms,
     isAuthenticated: !!user,
     isGuest: profile?.is_guest ?? false,
     hasCompletedOnboarding: profile?.onboarding_completed ?? false

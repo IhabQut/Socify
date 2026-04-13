@@ -14,19 +14,31 @@ import { restorePurchases, ENTITLEMENT_ID } from '@/lib/purchases';
 import { StorageService } from '@/services/storageService';
 import { TemplateCard } from '@/components/TemplateCard';
 import { BlurView } from 'expo-blur';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const { width } = Dimensions.get('window');
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Removed local TemplateCard component, now using universal TemplateCard from components
 
-const SkeletonCard = ({ theme }: any) => (
-  <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border, height: 180, opacity: 0.5 }]}>
-    <View style={[styles.imagePlaceholder, { backgroundColor: theme.border }]} />
-    <View style={styles.cardInfo}>
-      <View style={[styles.skeletonLine, { backgroundColor: theme.border, width: '70%' }]} />
-      <View style={[styles.skeletonLine, { backgroundColor: theme.border, width: '45%', marginTop: 6 }]} />
+const DashboardSkeleton = ({ theme }: any) => (
+  <View style={styles.categorySection}>
+    <View style={styles.categoryHeader}>
+      <Skeleton width={140} height={20} borderRadius={6} />
     </View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+      {[1, 2, 3].map((j) => (
+        <View key={j} style={styles.horizontalCardWrapper}>
+          <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border, height: 180 }]}>
+            <Skeleton width="100%" height={120} borderRadius={0} />
+            <View style={styles.cardInfo}>
+              <Skeleton width="70%" height={12} style={{ marginBottom: 6 }} />
+              <Skeleton width="45%" height={10} />
+            </View>
+          </View>
+        </View>
+      ))}
+    </ScrollView>
   </View>
 );
 
@@ -230,8 +242,18 @@ export default function CreativeScreen() {
             </View>
             
             {isSearching ? (
-              <View style={styles.searchLoading}>
-                <ActivityIndicator size="large" color={theme.accent} />
+              <View style={styles.searchGrid}>
+                {[1, 2, 3, 4].map((i) => (
+                  <View key={i} style={styles.gridCardWrapper}>
+                    <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border, height: 180 }]}>
+                      <Skeleton width="100%" height={120} borderRadius={0} />
+                      <View style={styles.cardInfo}>
+                        <Skeleton width="70%" height={12} style={{ marginBottom: 6 }} />
+                        <Skeleton width="45%" height={10} />
+                      </View>
+                    </View>
+                  </View>
+                ))}
               </View>
             ) : searchResults.length > 0 ? (
               <View style={styles.searchGrid}>
@@ -253,20 +275,8 @@ export default function CreativeScreen() {
         ) : loading ? (
           // Skeleton Loading State
           <View>
-            {[1, 2].map((i) => (
-              <View key={i} style={styles.categorySection}>
-                <View style={styles.categoryHeader}>
-                  <View style={[styles.skeletonLine, { backgroundColor: theme.border, width: 140, height: 20 }]} />
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-                  {[1, 2].map((j) => (
-                    <View key={j} style={styles.horizontalCardWrapper}>
-                      <SkeletonCard theme={theme} />
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            ))}
+            <DashboardSkeleton theme={theme} />
+            <DashboardSkeleton theme={theme} />
           </View>
         ) : (
           // Live Categories from Supabase

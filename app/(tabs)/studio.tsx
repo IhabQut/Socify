@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { AssetCacheService, CachedAsset } from '@/services/assetCacheService';
 import { ONBOARDING_OPTIONS, CHARACTER_LIMITS } from '@/constants/options';
 import { SettingsPicker } from '@/components/SettingsPicker';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -57,11 +58,45 @@ const ExpandableSettingsRow = ({ icon, title, description, children, theme, isDa
   );
 }
 
+const StudioSkeleton = ({ theme }: any) => (
+  <View style={{ flex: 1, padding: 24 }}>
+    <View style={{ marginBottom: 32 }}>
+      <Skeleton width={180} height={28} style={{ marginBottom: 8 }} />
+      <Skeleton width={130} height={16} />
+    </View>
+    
+    <View style={[styles.subBox, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, marginBottom: 32 }]}>
+       <Skeleton width={44} height={44} borderRadius={14} />
+       <View style={{ flex: 1, gap: 8 }}>
+         <Skeleton width="60%" height={18} />
+         <Skeleton width="80%" height={12} />
+       </View>
+    </View>
+
+    <View style={styles.sectionHeader}>
+       <Skeleton width={120} height={20} />
+       <Skeleton width={60} height={14} />
+    </View>
+
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 16 }}>
+      {[1, 2].map(i => (
+        <View key={i} style={[styles.historyCard, { backgroundColor: theme.card, borderColor: theme.border, height: 180 }]}>
+           <Skeleton width="100%" height={120} borderRadius={0} />
+           <View style={{ padding: 12, gap: 8 }}>
+             <Skeleton width="80%" height={14} />
+             <Skeleton width="50%" height={10} />
+           </View>
+        </View>
+      ))}
+    </View>
+  </View>
+);
+
 export default function StudioScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
   const { customerInfo, isPro, isOverridden, isLoading: subLoading, refresh: refreshSub } = usePurchases();
-  const { profile, brands, defaultBrand, loading: authLoading, isGuest, signOut, updateProfile, updateDefaultBrand, updateBrandPlatforms } = useAuth();
+  const { profile, brands, defaultBrand, brandPlatforms, loading: authLoading, isGuest, signOut, updateProfile, updateDefaultBrand, updateBrandPlatforms } = useAuth();
  
   const [isEditing, setIsEditing] = useState(false);
   const [alias, setAlias] = useState('Creative');
@@ -80,7 +115,29 @@ export default function StudioScreen() {
   const [avatarId, setAvatarId] = useState('person');
   const [showSettings, setShowSettings] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [initialState, setInitialState] = useState<any>(null);
+   const [initialState, setInitialState] = useState<any>(null);
+ 
+   const platformIdMap: Record<string, string> = {
+     'instagram': 'Instagram',
+     'facebook': 'Facebook',
+     'tiktok': 'TikTok',
+     'twitter': 'Twitter/X',
+     'linkedin': 'LinkedIn',
+     'youtube': 'YouTube',
+     'threads': 'Threads',
+     'pinterest': 'Pinterest'
+   };
+ 
+   const platformNameMap: Record<string, string> = {
+     'Instagram': 'instagram',
+     'Facebook': 'facebook',
+     'TikTok': 'tiktok',
+     'Twitter/X': 'twitter',
+     'LinkedIn': 'linkedin',
+     'YouTube': 'youtube',
+     'Threads': 'threads',
+     'Pinterest': 'pinterest'
+   };
 
   // Sync with Supabase Profile & Brand
   useEffect(() => {
@@ -97,7 +154,11 @@ export default function StudioScreen() {
       setTone(defaultBrand.preferred_tone || '');
       setFrequency(defaultBrand.marketing_frequency || '');
     }
-  }, [profile, defaultBrand, isEditing]); // Re-sync when entering/exiting edit mode for 'Cancel' effect
+    if (brandPlatforms && !isEditing) {
+      const names = brandPlatforms.map(id => platformIdMap[id] || id);
+      setSelectedPlatforms(names);
+    }
+  }, [profile, defaultBrand, brandPlatforms, isEditing]); // Re-sync when entering/exiting edit mode for 'Cancel' effect
 
   const hasChanges = initialState ? (
     alias !== initialState.alias ||
@@ -107,7 +168,7 @@ export default function StudioScreen() {
     brandIdentity !== initialState.brandIdentity ||
     goal !== initialState.goal ||
     frequency !== initialState.frequency ||
-    JSON.stringify(selectedPlatforms.sort()) !== JSON.stringify(initialState.platforms.sort())
+    JSON.stringify([...selectedPlatforms].sort()) !== JSON.stringify([...initialState.platforms].sort())
   ) : false;
 
   const handleSaveSettings = async () => {
@@ -115,13 +176,14 @@ export default function StudioScreen() {
     setSaving(true);
     try {
       // 1. Update Core User (users table)
-      await updateProfile({
+      const { error: pErr } = await updateProfile({
         full_name: alias,
         discovery_source: discovery,
       });
+      if (pErr) throw pErr;
 
       // 2. Update Default Brand (brands table)
-      await updateDefaultBrand({
+      const { error: bErr } = await updateDefaultBrand({
         shop_name: shopName,
         industry: industry,
         brand_identity: brandIdentity,
@@ -129,15 +191,19 @@ export default function StudioScreen() {
         preferred_tone: 'Professional', // Defaulting as removed from UI
         marketing_frequency: frequency
       });
+      if (bErr) throw bErr;
 
       // 3. Update Platforms (brand_platforms table)
-      await updateBrandPlatforms(selectedPlatforms);
+      const platformIds = selectedPlatforms.map(name => platformNameMap[name] || name.toLowerCase());
+      const { error: plError } = await updateBrandPlatforms(platformIds);
+      if (plError) throw plError;
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setIsEditing(false);
       setInitialState(null); // Force re-sync
-    } catch (e) {
-      Alert.alert("Error", "Could not save settings.");
+    } catch (e: any) {
+      console.error("[SaveSettings]", e);
+      Alert.alert("Error", e.message || "Could not save settings.");
     } finally {
       setSaving(false);
     }
@@ -294,6 +360,14 @@ export default function StudioScreen() {
       console.error(e);
     }
   };
+
+  if (authLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <StudioSkeleton theme={theme} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -456,7 +530,20 @@ export default function StudioScreen() {
                 <Animated.View entering={FadeIn.delay(200)}>
                   <Pressable 
                     style={[styles.editProfileTrigger, { backgroundColor: theme.card, borderColor: theme.border }]}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsEditing(true); }}
+                    onPress={() => { 
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); 
+                      setInitialState({
+                        alias,
+                        discovery,
+                        shopName,
+                        industry,
+                        brandIdentity,
+                        goal,
+                        frequency,
+                        platforms: [...selectedPlatforms]
+                      });
+                      setIsEditing(true); 
+                    }}
                   >
                     <Ionicons name="create-outline" size={16} color={theme.text} />
                     <Text style={[styles.editProfileTriggerText, { color: theme.text }]}>Edit Profile</Text>

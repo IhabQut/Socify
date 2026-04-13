@@ -6,6 +6,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { StorageService } from '@/services/storageService';
 import { useAuth } from '@/hooks/use-auth';
+import { Skeleton } from '@/components/ui/Skeleton';
 import * as Haptics from 'expo-haptics';
 import { Stack, useRouter, Redirect } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -87,6 +88,24 @@ const ProgressBar = ({ progress, theme }: { progress: number, theme: any }) => {
   );
 };
 
+const OnboardingSkeleton = ({ theme }: any) => (
+  <View style={{ flex: 1, padding: 40, paddingTop: 100 }}>
+    <Skeleton width={120} height={12} style={{ alignSelf: 'center', marginBottom: 40 }} />
+    <Skeleton width="90%" height={32} style={{ alignSelf: 'center', marginBottom: 12 }} />
+    <Skeleton width="70%" height={32} style={{ alignSelf: 'center', marginBottom: 40 }} />
+    
+    <View style={{ gap: 16, marginTop: 40 }}>
+      {[1, 2, 3, 4].map(i => (
+        <Skeleton key={i} width="100%" height={64} borderRadius={20} />
+      ))}
+    </View>
+
+    <View style={{ position: 'absolute', bottom: 60, left: 40, right: 40 }}>
+       <Skeleton width="100%" height={58} borderRadius={29} />
+    </View>
+  </View>
+);
+
 export default function OnboardingScreen() {
   const scrollX = useSharedValue(0);
   const flatListRef = useRef<FlatList>(null);
@@ -144,7 +163,11 @@ export default function OnboardingScreen() {
   }
 
   if (loading) {
-    return <View style={{ flex: 1, backgroundColor: theme.background }} />;
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <OnboardingSkeleton theme={theme} />
+      </View>
+    );
   }
 
   const handleNext = async () => {

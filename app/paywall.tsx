@@ -11,6 +11,7 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ENTITLEMENT_ID } from '@/lib/purchases';
 import { StorageService } from '@/services/storageService';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { NotificationService } from '@/services/notificationService';
 import { usePurchases } from '@/hooks/use-purchases';
 import { supabase } from '@/lib/supabase';
@@ -225,10 +226,41 @@ export default function PaywallScreen() {
     };
   });
 
+  const PaywallSkeleton = ({ theme }: any) => (
+    <View style={{ flex: 1, padding: 30, paddingTop: 60 }}>
+      <View style={{ alignSelf: 'center', marginBottom: 40, alignItems: 'center' }}>
+        <Skeleton width={80} height={80} borderRadius={20} style={{ marginBottom: 20 }} />
+        <Skeleton width={200} height={28} style={{ marginBottom: 12 }} />
+        <Skeleton width={160} height={16} />
+      </View>
+
+      <View style={{ gap: 16, marginBottom: 40 }}>
+        {[1, 2, 3].map(i => (
+          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Skeleton width={24} height={24} borderRadius={12} />
+            <View style={{ gap: 6, flex: 1 }}>
+              <Skeleton width="80%" height={14} />
+              <Skeleton width="40%" height={10} />
+            </View>
+          </View>
+        ))}
+      </View>
+
+      <View style={{ gap: 16 }}>
+        <Skeleton width="100%" height={80} borderRadius={16} />
+        <Skeleton width="100%" height={80} borderRadius={16} />
+      </View>
+
+      <View style={{ position: 'absolute', bottom: 40, left: 30, right: 30 }}>
+        <Skeleton width="100%" height={60} borderRadius={30} />
+      </View>
+    </View>
+  );
+
   if (isLoading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <PaywallSkeleton theme={theme} />
       </View>
     );
   }

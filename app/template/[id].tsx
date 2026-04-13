@@ -16,6 +16,7 @@ import { BlurView } from 'expo-blur';
 import { Alert } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
 import { Video, ResizeMode } from 'expo-av';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const { width, height } = Dimensions.get('window');
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -241,6 +242,48 @@ const RequirementInput = ({ req, theme, isLast, value, onValueChange }: any) => 
 }
 
 
+const TemplateSkeleton = ({ theme, insets }: any) => (
+  <View style={{ flex: 1 }}>
+    {/* Hero Skeleton */}
+    <View style={{ height: height * 0.4, backgroundColor: theme.card }}>
+       <Skeleton width="100%" height="100%" borderRadius={0} />
+       <View style={{ position: 'absolute', top: insets.top + 10, left: 24, right: 24, flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Skeleton width={38} height={38} borderRadius={19} />
+          <Skeleton width={80} height={32} borderRadius={16} />
+       </View>
+       <View style={{ position: 'absolute', bottom: 24, left: 24, right: 24, gap: 8 }}>
+          <Skeleton width={120} height={12} />
+          <Skeleton width="80%" height={32} />
+          <Skeleton width="40%" height={14} />
+       </View>
+    </View>
+
+    {/* Content Skeleton */}
+    <View style={{ padding: 24, gap: 24 }}>
+       <Skeleton width={150} height={20} />
+       <View style={{ height: 180, borderRadius: 28, borderWidth: 1, borderColor: theme.border, padding: 20, gap: 16 }}>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+             <Skeleton width={44} height={44} borderRadius={14} />
+             <View style={{ gap: 8, flex: 1 }}>
+                <Skeleton width="60%" height={16} />
+                <Skeleton width="90%" height={12} />
+             </View>
+          </View>
+          <Skeleton width="100%" height={60} borderRadius={16} />
+       </View>
+    </View>
+
+    {/* Bottom Bar Skeleton */}
+    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 100, borderTopWidth: 1, borderTopColor: theme.border, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 20 }}>
+       <View style={{ gap: 4 }}>
+          <Skeleton width={40} height={10} />
+          <Skeleton width={60} height={20} />
+       </View>
+       <Skeleton width="70%" height={58} borderRadius={29} />
+    </View>
+  </View>
+);
+
 export default function TemplateExecutionScreen() {
     const { id } = useLocalSearchParams();
     const colorScheme = useColorScheme() ?? 'dark';
@@ -303,7 +346,11 @@ export default function TemplateExecutionScreen() {
     const ctaAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: ctaScale.value }] }));
 
     if (loading || !template) {
-        return <View style={{ flex: 1, backgroundColor: theme.background }} />;
+        return (
+            <View style={{ flex: 1, backgroundColor: theme.background }}>
+                <TemplateSkeleton theme={theme} insets={insets} />
+            </View>
+        );
     }
 
     return (

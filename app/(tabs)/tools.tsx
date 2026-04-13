@@ -362,7 +362,19 @@ const ToolModal = ({ tool, visible, onClose, theme }: any) => {
           <Pressable style={[tm.btn, { backgroundColor: theme.text, opacity: loading ? 0.7 : 1 }]} onPress={run} disabled={loading}>
             {loading ? <ActivityIndicator color={theme.background} /> : <Text style={{ color: theme.background, fontSize: 16, fontWeight: '700' }}>Run Auto-Task</Text>}
           </Pressable>
-          {!!output && (
+
+          {loading && (
+            <View style={[tm.output, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 24 }]}>
+               <Skeleton width={100} height={12} style={{ marginBottom: 16 }} />
+               <View style={{ gap: 10 }}>
+                 <Skeleton width="100%" height={14} />
+                 <Skeleton width="100%" height={14} />
+                 <Skeleton width="60%" height={14} />
+               </View>
+            </View>
+          )}
+
+          {!!output && !loading && (
             <Animated.View entering={FadeIn.duration(400)} style={[tm.output, { backgroundColor: theme.card, borderColor: theme.border }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <Text style={{ color: theme.text, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 12 }}>Result</Text>

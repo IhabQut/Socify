@@ -20,11 +20,56 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { StorageService } from '@/services/storageService';
 import { usePurchases } from '@/hooks/use-purchases';
 import { NotificationService } from '@/services/notificationService';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const { width } = Dimensions.get('window');
 
 // 30 Days of Content with multiple tasks
 const ROADMAP_CONTENT: Record<number, { title: string; tasks: { id: string; title: string; desc: string; reward: number }[] }> = {};
+
+const CalendarSkeleton = ({ theme }: any) => (
+  <View style={{ flex: 1 }}>
+    <View style={styles.header}>
+      <View style={{ gap: 8 }}>
+        <Skeleton width={120} height={24} />
+        <Skeleton width={80} height={14} />
+      </View>
+      <Skeleton width={100} height={36} borderRadius={16} />
+    </View>
+
+    <View style={[styles.navWrapper, { borderBottomColor: theme.border }]}>
+      <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20 }}>
+        {[1, 2, 3, 4, 5, 6].map(i => (
+          <Skeleton key={i} width={52} height={52} borderRadius={26} />
+        ))}
+      </View>
+    </View>
+
+    <View style={{ padding: 20 }}>
+      <View style={[styles.dayHeader, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View style={styles.dayTitleRow}>
+          <Skeleton width={140} height={20} />
+          <Skeleton width={40} height={16} />
+        </View>
+        <Skeleton width="100%" height={8} borderRadius={4} style={{ marginTop: 12 }} />
+      </View>
+
+      <View style={styles.taskList}>
+        {[1, 2].map(i => (
+          <View key={i} style={[styles.taskCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={{ flex: 1, gap: 8 }}>
+              <Skeleton width="60%" height={16} />
+              <Skeleton width="90%" height={12} />
+            </View>
+            <Skeleton width={60} height={36} borderRadius={18} />
+          </View>
+        ))}
+      </View>
+    </View>
+  </View>
+);
+
+
 
 const taskTemplates = [
   { title: "Audit & Fix", desc: "Review and refine your profile elements." },
@@ -134,9 +179,9 @@ export default function CalendarScreen() {
 
   if (loading || subLoading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <CalendarSkeleton theme={theme} />
+      </SafeAreaView>
     );
   }
 

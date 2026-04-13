@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { usePurchases } from '@/hooks/use-purchases';
 import { ENTITLEMENT_ID } from '@/lib/purchases';
 import { TemplateCard } from '@/components/TemplateCard';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const { width } = Dimensions.get('window');
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -72,9 +73,18 @@ export default function CategoryScreen() {
 
       {/* Content */}
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.icon }]}>Loading templates...</Text>
+        <View style={styles.grid}>
+          <View style={styles.row}>
+            {[1, 2, 3, 4, 5, 6].map(i => (
+               <View key={i} style={[styles.card, { width: CARD_WIDTH, height: 180, borderColor: theme.border, backgroundColor: theme.card }]}>
+                  <Skeleton width="100%" height={120} borderRadius={0} />
+                  <View style={styles.cardInfo}>
+                    <Skeleton width="70%" height={12} style={{ marginBottom: 6 }} />
+                    <Skeleton width="45%" height={10} />
+                  </View>
+               </View>
+            ))}
+          </View>
         </View>
       ) : error ? (
         <View style={styles.errorState}>
