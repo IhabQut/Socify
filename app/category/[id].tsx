@@ -10,51 +10,13 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { supabase } from '@/lib/supabase';
 import { usePurchases } from '@/hooks/use-purchases';
 import { ENTITLEMENT_ID } from '@/lib/purchases';
+import { TemplateCard } from '@/components/TemplateCard';
 
 const { width } = Dimensions.get('window');
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const CARD_WIDTH = (width - 48 - 12) / 2;
 
-const TemplateCard = ({ template, theme, index }: any) => {
-  const scale = useSharedValue(1);
-  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const { isPro } = usePurchases();
-
-  const isPremium = template.is_pro || template.pro;
-  const isLocked = isPremium && !isPro;
-
-  return (
-    <Animated.View entering={FadeInUp.delay(index * 80).duration(500)} style={{ width: CARD_WIDTH }}>
-      <AnimatedPressable
-        style={[styles.card, animStyle, { backgroundColor: theme.card, borderColor: theme.border }]}
-        onPressIn={() => { scale.value = withSpring(0.95); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-        onPressOut={() => scale.value = withSpring(1)}
-        onPress={() => {
-          if (isLocked) {
-            router.push('/paywall');
-          } else {
-            router.push(`/template/${template.id}`);
-          }
-        }}
-      >
-        <View style={[styles.imageBox, { backgroundColor: theme.border }]}>
-          <Ionicons name={isLocked ? "lock-closed" : "color-wand-outline"} size={28} color={isLocked ? theme.accent : theme.icon} />
-          {isPremium && (
-            <View style={[styles.badge, { backgroundColor: theme.accent }]}>
-              <Text style={[styles.badgeText, { color: theme.background }]}>PRO</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.cardInfo}>
-          <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={2}>{template.title}</Text>
-          <Text style={[styles.cardMeta, { color: theme.icon }]}>
-            {template.requirements?.length || 0} inputs required
-          </Text>
-        </View>
-      </AnimatedPressable>
-    </Animated.View>
-  );
-};
+// Removed local TemplateCard component, now using universal TemplateCard from components
 
 export default function CategoryScreen() {
   const { id, name, color } = useLocalSearchParams();
@@ -140,7 +102,9 @@ export default function CategoryScreen() {
           columnWrapperStyle={styles.row}
           showsVerticalScrollIndicator={false}
           renderItem={({ item, index }) => (
-            <TemplateCard template={item} theme={theme} index={index} />
+            <Animated.View entering={FadeInUp.delay(index * 80).duration(500)} style={{ width: CARD_WIDTH }}>
+              <TemplateCard template={item} theme={theme} colorScheme={colorScheme} width={CARD_WIDTH} />
+            </Animated.View>
           )}
         />
       )}

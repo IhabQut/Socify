@@ -25,6 +25,7 @@ import {
   Keyboard,
   Image
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   Extrapolation,
   FadeIn,
@@ -51,43 +52,39 @@ interface OnboardingData {
   options?: string[];
   placeholder?: string;
   multiSelect?: boolean;
+  maxLength?: number;
 }
 
 const ONBOARDING_DATA: OnboardingData[] = [
-  { id: '1', title: 'Welcome to Socify', subtitle: 'A space designed specially for creators to share, inspire, and connect.', style: 'hero', type: 'welcome' },
-  { id: '3', title: 'Main Interests', subtitle: 'Select your primary areas of focus. (Select multiple)', style: 'grid', type: 'question_select', options: ['Photography', 'Design', 'Writing', 'Music', 'Art', 'Video', 'Coding', 'Marketing', 'Other'], multiSelect: true },
-  { id: '8', title: 'Your Active Platforms', subtitle: 'Which social networks do you focus on? (Select multiple)', style: 'grid', type: 'question_select', options: ['Instagram', 'Facebook', 'TikTok', 'Twitter/X', 'LinkedIn', 'YouTube', 'Other'], multiSelect: true },
-  { id: '4', title: 'Primary Goal', subtitle: 'What is your biggest objective right now?', style: 'grid', type: 'question_select', options: ['Grow Following', 'Sell Products', 'Brand Awareness', 'Build Portfolio', 'Local Traffic', 'Other'], multiSelect: false },
-  { id: '9', title: 'Discovery Source', subtitle: 'Where did you hear about Socify?', style: 'centered', type: 'question_select', options: ['App Store', 'Social Media', 'Search Engine', 'Friend', 'Ad', 'Other'], multiSelect: false },
-  { id: '10', title: 'Follower Base', subtitle: 'How many followers do you currently have?', style: 'centered', type: 'question_select', options: ['0 - 1k', '1k - 10k', '10k - 50k', '50k - 100k', '100k+'], multiSelect: false },
-  { id: '11', title: 'Brand Identity', subtitle: 'How would you describe your brand in a few words?', style: 'centered', type: 'question_input', placeholder: 'e.g., Luxury Sustainable Fashion' },
-  { id: '14', title: 'Your Industry', subtitle: 'Which sector does your work fall under?', style: 'centered', type: 'question_select', options: ['F&B', 'Real Estate', 'Tech', 'Fashion', 'Beauty', 'Health', 'Education', 'Other'], multiSelect: false },
-  { id: '15', title: 'Shop & Location', subtitle: 'What is your shop or business name?', style: 'centered', type: 'question_input', placeholder: 'Enter shop name...' },
-  { id: '12', title: 'Physical Presence', subtitle: 'Do you have a local shop or physical location?', style: 'centered', type: 'question_select', options: ['Yes, I have a shop', 'No, only online'], multiSelect: false },
-  { id: '13', title: 'Marketing Pulse', subtitle: 'How often do you use social media for ads?', style: 'centered', type: 'question_select', options: ['Daily', 'Weekly', 'Occasionally', 'Never yet'], multiSelect: false },
-  { id: '5', title: 'Tone of Voice', subtitle: 'How should your content feel?', style: 'centered', type: 'question_select', options: ['Professional', 'Casual', 'Humorous', 'Bold', 'Minimalist', 'Other'], multiSelect: false },
-  { id: '6', title: 'Alias', subtitle: 'Last step! How should we call you?', style: 'centered', type: 'question_input', placeholder: 'Enter your name or alias...' },
-  { id: '7', title: 'Ready to Inspire?', subtitle: 'Based on your answers, we have crafted a custom creative strategy for you.', style: 'hero', type: 'final' },
+  { id: '1', title: "Let's Customize Your Experience", subtitle: "Let's be creative. A space designed specially for creators to share, inspire, and connect.", style: 'hero', type: 'welcome' },
+  { id: '3', title: 'Main Interests', subtitle: 'Select your primary areas of focus. (Select multiple)', style: 'grid', type: 'question_select', options: ['Photography', 'Graphic Design', 'Content Creation', 'Digital Art', 'Video Production', 'Creative Writing', 'Performance Art'], multiSelect: true },
+  { id: '8', title: 'Active Platforms', subtitle: 'Where do you build your presence? (Select multiple)', style: 'grid', type: 'question_select', options: ['Instagram', 'TikTok', 'YouTube', 'LinkedIn', 'Facebook', 'Threads', 'Pinterest'], multiSelect: true },
+  { id: '4', title: 'Primary Goal', subtitle: 'What is your main focus for growth?', style: 'grid', type: 'question_select', options: ['Scale Engagement', 'Monetize Content', 'Build Authority', 'Drive Sales', 'Establish Brand', 'Network & Connect'], multiSelect: false },
+  { id: '9', title: 'Discovery Source', subtitle: 'How did you find your way here?', style: 'centered', type: 'question_select', options: ['App Store', 'Social Media', 'Search Engine', 'Friend Referral', 'Advertisement'], multiSelect: false },
+  { id: '10', title: 'Current Reach', subtitle: 'What is your current follower base?', style: 'centered', type: 'question_select', options: ['0 - 1k', '1k - 10k', '10k - 50k', '50k - 100k', '100k+'], multiSelect: false },
+  { id: '14', title: 'Your Industry', subtitle: 'Which sector best defines your work?', style: 'centered', type: 'question_select', options: ['Beauty & Cosmetics', 'Food & Beverage', 'Fashion & Apparel', 'Real Estate', 'Tech & SaaS', 'Health & Wellness', 'Education', 'Creative Arts', 'Luxury & Lifestyle'], multiSelect: false },
+  { id: '11', title: 'Brand Identity', subtitle: 'Describe your brand essence in a few words.', style: 'centered', type: 'question_input', placeholder: 'e.g., Minimalist Sustainable Fashion', maxLength: 80 },
+  { id: '15', title: 'Shop & Location', subtitle: 'What is your business or alias name?', style: 'centered', type: 'question_input', placeholder: 'Digital Dreamers Co.', maxLength: 40 },
+  { id: '12', title: 'Physical Presence', subtitle: 'Do you operate a physical location?', style: 'centered', type: 'question_select', options: ['Yes, Physical Shop', 'No, Online Only'], multiSelect: false },
+  { id: '13', title: 'Marketing Pulse', subtitle: 'How often do you run social media ads?', style: 'centered', type: 'question_select', options: ['Daily', 'Weekly', 'Monthly', 'Exploring Options'], multiSelect: false },
+  { id: '6', title: 'Alias', subtitle: 'Finally, how should we address you?', style: 'centered', type: 'question_input', placeholder: 'Enter your name...', maxLength: 30 },
+  { id: '7', title: 'Strategy Ready', subtitle: 'We’ve analyzed your profile and prepared a personalized creative engine.', style: 'hero', type: 'final' },
 ];
 
 const PaginationDot = ({ index, scrollX, theme }: any) => {
-  const dotStyle = useAnimatedStyle(() => {
-    const width = interpolate(
-      scrollX.value,
-      [(index - 1) * SCREEN_WIDTH, index * SCREEN_WIDTH, (index + 1) * SCREEN_WIDTH],
-      [8, 24, 8],
-      Extrapolation.CLAMP
-    );
-    const opacity = interpolate(
-      scrollX.value,
-      [(index - 1) * SCREEN_WIDTH, index * SCREEN_WIDTH, (index + 1) * SCREEN_WIDTH],
-      [0.2, 1, 0.2],
-      Extrapolation.CLAMP
-    );
-    return { width, opacity, backgroundColor: theme.primary };
-  });
+  return null; // Dots are replaced by progress bar
+};
 
-  return <Animated.View style={[styles.dot, dotStyle]} />;
+const ProgressBar = ({ progress, theme }: { progress: number, theme: any }) => {
+  const animatedStyle = useAnimatedStyle(() => ({
+    width: withSpring(`${progress * 100}%`, { damping: 20, stiffness: 90 }),
+  }));
+
+  return (
+    <View style={[styles.progressBarTrack, { backgroundColor: theme.card }]}>
+      <Animated.View style={[styles.progressBarFill, { backgroundColor: theme.primary }, animatedStyle]} />
+    </View>
+  );
 };
 
 export default function OnboardingScreen() {
@@ -105,7 +102,6 @@ export default function OnboardingScreen() {
   const [shopName, setShopName] = useState('');
   const [hasLocalShop, setHasLocalShop] = useState(false);
   const [frequency, setFrequency] = useState('');
-  const [tone, setTone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const analysisProgress = useSharedValue(0);
@@ -165,7 +161,6 @@ export default function OnboardingScreen() {
       else if (currentStep.id === '14') isValid = !!industry;
       else if (currentStep.id === '12') isValid = true;
       else if (currentStep.id === '13') isValid = !!frequency;
-      else if (currentStep.id === '5') isValid = !!tone;
     } else if (currentStep.type === 'question_input') {
       if (currentStep.id === '11') isValid = brandIdentity.trim().length > 0;
       else if (currentStep.id === '15') isValid = shopName.trim().length > 0;
@@ -221,7 +216,6 @@ export default function OnboardingScreen() {
           hasLocalShop: hasLocalShop,
           frequency: frequency,
           goal: goal,
-          tone: tone,
           platforms: platforms
         });
         
@@ -246,20 +240,15 @@ export default function OnboardingScreen() {
     }
   };
 
-  const skip = async () => {
-    Keyboard.dismiss();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsSubmitting(true);
-    try {
-      await signInGuest();
-      await StorageService.setOnboarded();
-      router.replace('/(tabs)');
-    } catch (e) {
-      console.error("Skip failed", e);
-    } finally {
-      setIsSubmitting(false);
+  const handleBack = () => {
+    if (currentIndex > 0) {
+      const prevIndex = currentIndex - 1;
+      flatListRef.current?.scrollToIndex({ index: prevIndex, animated: true });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
+
+  const skip = null; // Removed skip
 
   const renderItem = ({ item, index }: { item: OnboardingData; index: number }) => {
     return (
@@ -267,12 +256,23 @@ export default function OnboardingScreen() {
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={{ width: SCREEN_WIDTH, paddingTop: SCREEN_HEIGHT * 0.1, flex: 1 }}>
+        <View style={{ width: SCREEN_WIDTH, paddingTop: 20, flex: 1 }}>
           <OnboardingStep
             title={item.title}
             subtitle={item.subtitle}
             style={item.style}
           >
+            {item.type === 'welcome' && (
+              <View style={styles.previewContainer}>
+                <View style={[styles.videoPlaceholder, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <Ionicons name="play-circle" size={64} color={theme.primary} />
+                  <Text style={[styles.placeholderText, { color: theme.icon }]}>App Showcase Preview</Text>
+                  <View style={[styles.videoBadge, { backgroundColor: theme.primary }]}>
+                    <Text style={styles.videoBadgeText}>HD GIF/VIDEO</Text>
+                  </View>
+                </View>
+              </View>
+            )}
             {item.type === 'question_select' && (
               <QuestionCard
                 type="select"
@@ -285,9 +285,8 @@ export default function OnboardingScreen() {
                   if (item.id === '9') { setDiscovery(val as string); }
                   if (item.id === '10') { setFollowerCount(val as string); }
                   if (item.id === '14') { setIndustry(val as string); }
-                  if (item.id === '12') { setHasLocalShop(val === 'Yes, I have a shop'); }
+                  if (item.id === '12') { setHasLocalShop(val === 'Yes, Physical Shop'); }
                   if (item.id === '13') { setFrequency(val as string); }
-                  if (item.id === '5') { setTone(val as string); }
                 }}
               />
             )}
@@ -295,6 +294,7 @@ export default function OnboardingScreen() {
               <QuestionCard
                 type="input"
                 placeholder={item.placeholder}
+                maxLength={item.maxLength}
                 onValueChange={(val) => {
                   if (item.id === '11') setBrandIdentity(val as string);
                   if (item.id === '15') setShopName(val as string);
@@ -302,15 +302,6 @@ export default function OnboardingScreen() {
                 }}
               />
             )}
-
-            <View style={styles.buttonWrapper}>
-              <AnimatedButton
-                title={index === ONBOARDING_DATA.length - 1 ? (isSubmitting ? 'Entering...' : 'Get Started') : 'Continue'}
-                onPress={handleNext}
-                primary={index === ONBOARDING_DATA.length - 1}
-                disabled={isSubmitting}
-              />
-            </View>
           </OnboardingStep>
         </View>
       </KeyboardAvoidingView>
@@ -327,6 +318,33 @@ export default function OnboardingScreen() {
         <FloatingParticle color={theme.primary} size={SCREEN_WIDTH * 0.7} delay={1000} duration={15000} />
       </Animated.View>
 
+      <SafeAreaView style={styles.headerSafeArea} pointerEvents="box-none">
+        {currentIndex > 0 && (
+          <View style={styles.topHeader}>
+            <View style={styles.headerTopRow}>
+              {currentIndex < ONBOARDING_DATA.length - 1 ? (
+                <Pressable 
+                  onPress={handleBack} 
+                  style={styles.headerBackButton}
+                  hitSlop={20}
+                >
+                  <Ionicons name="arrow-back" size={24} color={theme.text} />
+                </Pressable>
+              ) : (
+                <View style={{ width: 32 }} />
+              )}
+              <View style={styles.stepInfo}>
+                <Text style={[styles.stepText, { color: theme.icon }]}>
+                  Step {currentIndex} <Text style={{ color: theme.text, opacity: 0.3 }}>/</Text> {ONBOARDING_DATA.length - 1}
+                </Text>
+              </View>
+              <View style={{ width: 32 }} /> 
+            </View>
+            <ProgressBar progress={currentIndex / (ONBOARDING_DATA.length - 1)} theme={theme} />
+          </View>
+        )}
+      </SafeAreaView>
+
       <Animated.FlatList
         ref={flatListRef as any}
         data={ONBOARDING_DATA}
@@ -342,27 +360,20 @@ export default function OnboardingScreen() {
         bounces={false}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={Keyboard.dismiss}
+        scrollEnabled={false}
       />
 
-      <SafeAreaView style={styles.headerSafeArea} pointerEvents="box-none">
-        {currentIndex < ONBOARDING_DATA.length - 1 && (
-          <Animated.View entering={FadeIn.delay(500)} style={styles.header}>
-            <Pressable onPress={skip} hitSlop={20}>
-              <Text style={[styles.skipText, { color: theme.icon }]}>Skip</Text>
-            </Pressable>
-          </Animated.View>
-        )}
-      </SafeAreaView>
-
-      <View style={styles.pagination} pointerEvents="none">
-        {ONBOARDING_DATA.map((_, index) => (
-          <PaginationDot 
-            key={index} 
-            index={index} 
-            scrollX={scrollX} 
-            theme={theme} 
-          />
-        ))}
+      <View style={styles.footerNav}>
+        <View style={styles.footerButtons}>
+          <View style={{ flex: 1 }}>
+            <AnimatedButton
+              title={currentIndex === ONBOARDING_DATA.length - 1 ? (isSubmitting ? 'Entering...' : 'Get Started') : 'Continue'}
+              onPress={handleNext}
+              primary={currentIndex === ONBOARDING_DATA.length - 1}
+              disabled={isSubmitting}
+            />
+          </View>
+        </View>
       </View>
 
       <Modal visible={isAnalyzing} transparent animationType="none">
@@ -425,8 +436,24 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   backgroundLayer: { ...StyleSheet.absoluteFillObject, zIndex: -3, opacity: 0.1 },
-  headerSafeArea: { position: 'absolute', top: 20, width: '100%', zIndex: 100 },
-  header: { alignItems: 'flex-end', paddingHorizontal: 24, paddingTop: 10 },
+  headerSafeArea: { width: '100%', zIndex: 100 },
+  topHeader: { paddingHorizontal: 24, paddingTop: Platform.OS === 'ios' ? 10 : 20, paddingBottom: 10 },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  headerBackButton: { padding: 4 },
+  stepInfo: { justifyContent: 'center' },
+  stepText: { fontSize: 13, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  progressBarTrack: { width: '100%', height: 4, borderRadius: 2, overflow: 'hidden' },
+  progressBarFill: { height: '100%', borderRadius: 2 },
+  footerNav: { position: 'absolute', bottom: 40, width: '100%', paddingHorizontal: 24, zIndex: 100 },
+  footerButtons: { flexDirection: 'row', alignItems: 'center' },
+  backButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
   skipText: { fontSize: 15, fontWeight: '500' },
   buttonWrapper: { marginTop: 40, alignItems: 'center', width: '100%', paddingHorizontal: 24, zIndex: 50 },
   pagination: { position: 'absolute', bottom: 50, flexDirection: 'row', width: '100%', justifyContent: 'center', alignItems: 'center', gap: 8 },
@@ -456,4 +483,35 @@ const styles = StyleSheet.create({
   progressTrack: { width: '100%', height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 12 },
   progressBar: { height: '100%', borderRadius: 3 },
   progressPercentage: { fontSize: 13, fontWeight: '700' },
+  previewContainer: {
+    width: '100%',
+    aspectRatio: 16/10,
+    marginTop: 20,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  videoPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 24,
+  },
+  placeholderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  videoBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  videoBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
 });

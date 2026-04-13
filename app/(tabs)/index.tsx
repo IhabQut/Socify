@@ -12,53 +12,13 @@ import { useAuth } from '@/hooks/use-auth';
 import { usePurchases } from '@/hooks/use-purchases';
 import { restorePurchases, ENTITLEMENT_ID } from '@/lib/purchases';
 import { StorageService } from '@/services/storageService';
+import { TemplateCard } from '@/components/TemplateCard';
+import { BlurView } from 'expo-blur';
 
 const { width } = Dimensions.get('window');
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const TemplateCard = ({ template, theme }: any) => {
-  const scale = useSharedValue(1);
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const { isPro } = usePurchases();
-
-  // Badge Logic
-  const isPremium = template.is_pro || template.pro;
-  const isNew = template.is_new || template.new;
-  const isLocked = isPremium && !isPro;
-
-  return (
-    <AnimatedPressable
-      style={[styles.card, animatedStyle, { backgroundColor: theme.card, borderColor: theme.border, height: 180 }]}
-      onPressIn={() => { scale.value = withSpring(0.95); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-      onPressOut={() => scale.value = withSpring(1)}
-      onPress={() => router.push(`/template/${template.id}`)}
-    >
-      <View style={[styles.imagePlaceholder, { backgroundColor: theme.border }]}>
-        <Ionicons name={isLocked ? "lock-closed" : "color-wand-outline"} size={24} color={isLocked ? theme.accent : theme.icon} />
-        
-        {/* Badges */}
-        <View style={styles.badgeContainer}>
-          {isPremium && (
-            <View style={[styles.badge, { backgroundColor: theme.accent }]}>
-              <Text style={[styles.badgeText, { color: theme.background }]}>PRO</Text>
-            </View>
-          )}
-          {isNew && (
-            <View style={[styles.badge, { backgroundColor: theme.success }]}>
-              <Text style={styles.badgeText}>NEW</Text>
-            </View>
-          )}
-        </View>
-      </View>
-      <View style={styles.cardInfo}>
-        <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={1}>{template.title}</Text>
-        <Text style={[styles.cardSub, { color: theme.icon }]} numberOfLines={1}>
-          {isPremium ? 'Premium Asset' : `${template.requirements?.length || 0} assets needed`}
-        </Text>
-      </View>
-    </AnimatedPressable>
-  );
-};
+// Removed local TemplateCard component, now using universal TemplateCard from components
 
 const SkeletonCard = ({ theme }: any) => (
   <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border, height: 180, opacity: 0.5 }]}>
@@ -227,12 +187,24 @@ export default function CreativeScreen() {
         {!search && (
           <View style={styles.bannerWrapper}>
             <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.bannerCard}>
-              <Image source={{ uri: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1000' }} style={StyleSheet.absoluteFillObject} borderRadius={24} />
-              <View style={[styles.bannerBadge, { backgroundColor: theme.overlay }]}>
-                <Text style={[styles.bannerBadgeText, { color: theme.white }]}>Trending Now</Text>
+              <Image 
+                source={{ uri: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1000' }} 
+                style={StyleSheet.absoluteFillObject} 
+                borderRadius={28} 
+              />
+              <View style={[styles.bannerBadge, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+                <Ionicons name="sparkles" size={12} color="#FFF" style={{ marginRight: 4 }} />
+                <Text style={styles.bannerBadgeText}>FEATURED</Text>
               </View>
-              <Text style={[styles.bannerTitle, { color: theme.background }]}>Visual Storytelling 2026</Text>
-              <Text style={[styles.bannerSubtitle, { color: theme.background }]}>AI-driven aesthetics for modern creators</Text>
+              
+              <View style={styles.bannerGlassWrapper}>
+                <BlurView intensity={40} tint="dark" style={styles.bannerBlur}>
+                  <Text style={[styles.bannerTitle, { color: '#FFF' }]}>Visual Storytelling 2026</Text>
+                  <Text style={[styles.bannerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>
+                    Unlock next-generation AI visuals for your brand
+                  </Text>
+                </BlurView>
+              </View>
             </Animated.View>
           </View>
         )}
@@ -265,7 +237,7 @@ export default function CreativeScreen() {
               <View style={styles.searchGrid}>
                 {searchResults.map((item) => (
                   <View key={item.id} style={styles.gridCardWrapper}>
-                    <TemplateCard template={item} theme={theme} />
+                    <TemplateCard template={item} theme={theme} colorScheme={colorScheme} width={width * 0.44} />
                   </View>
                 ))}
               </View>
@@ -333,7 +305,7 @@ export default function CreativeScreen() {
                   decelerationRate="fast"
                   renderItem={({ item }) => (
                     <View style={styles.horizontalCardWrapper}>
-                      <TemplateCard template={item} theme={theme} />
+                      <TemplateCard template={item} theme={theme} colorScheme={colorScheme} />
                     </View>
                   )}
                 />
@@ -359,11 +331,13 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15, fontWeight: '500' },
   scrollContent: { paddingVertical: 16, paddingBottom: 100 },
   bannerWrapper: { paddingHorizontal: 24, marginBottom: 32 },
-  bannerCard: { padding: 24, borderRadius: 24, minHeight: 180, justifyContent: 'flex-end' },
-  bannerBadge: { position: 'absolute', top: 20, left: 20, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  bannerBadgeText: { fontSize: 13, fontWeight: '800' },
-  bannerTitle: { fontSize: 24, fontWeight: '800', marginBottom: 6 },
-  bannerSubtitle: { fontSize: 14, fontWeight: '500', opacity: 0.9 },
+  bannerCard: { borderRadius: 28, minHeight: 180, overflow: 'hidden', justifyContent: 'flex-end' },
+  bannerBadge: { position: 'absolute', top: 16, left: 16, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, zIndex: 10 },
+  bannerBadgeText: { fontSize: 11, fontWeight: '900', color: '#FFF', letterSpacing: 0.5 },
+  bannerGlassWrapper: { width: '100%', overflow: 'hidden' },
+  bannerBlur: { padding: 18, borderTopWidth: 0 },
+  bannerTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5, marginBottom: 4 },
+  bannerSubtitle: { fontSize: 13, fontWeight: '600', opacity: 0.9 },
   categorySection: { marginBottom: 32 },
   categoryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, marginBottom: 16 },
   categoryTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

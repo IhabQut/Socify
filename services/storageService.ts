@@ -9,6 +9,7 @@ const PLAN_START_KEY = '@socify_plan_start';
 const COMPLETED_DAYS_KEY = '@socify_completed_days';
 const WEEKLY_BONUS_CLAIMED_KEY = '@socify_weekly_bonus_claimed';
 const COMPLETED_TASKS_KEY = '@socify_completed_tasks';
+const DEV_PRO_OVERRIDE_KEY = '@socify_dev_pro_override';
 
 export interface UserProfile {
   alias: string;
@@ -177,6 +178,24 @@ export class StorageService {
   static async setWeeklyBonusClaimed(weekIndex: number) {
     try {
       await AsyncStorage.setItem(`${WEEKLY_BONUS_CLAIMED_KEY}_${weekIndex}`, 'true');
+    } catch (e) { console.warn("Storage Error:", e); }
+  }
+
+  static async getDeveloperProOverride(): Promise<boolean | null> {
+    try {
+      const val = await AsyncStorage.getItem(DEV_PRO_OVERRIDE_KEY);
+      if (val === null) return null;
+      return val === 'true';
+    } catch { return null; }
+  }
+
+  static async setDeveloperProOverride(isPro: boolean | null) {
+    try {
+      if (isPro === null) {
+        await AsyncStorage.removeItem(DEV_PRO_OVERRIDE_KEY);
+      } else {
+        await AsyncStorage.setItem(DEV_PRO_OVERRIDE_KEY, isPro.toString());
+      }
     } catch (e) { console.warn("Storage Error:", e); }
   }
 }

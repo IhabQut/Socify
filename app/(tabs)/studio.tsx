@@ -15,6 +15,8 @@ import { usePurchases } from '@/hooks/use-purchases';
 import { restorePurchases, ENTITLEMENT_ID } from '@/lib/purchases';
 import { supabase } from '@/lib/supabase';
 import { AssetCacheService, CachedAsset } from '@/services/assetCacheService';
+import { ONBOARDING_OPTIONS, CHARACTER_LIMITS } from '@/constants/options';
+import { SettingsPicker } from '@/components/SettingsPicker';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -58,7 +60,7 @@ const ExpandableSettingsRow = ({ icon, title, description, children, theme, isDa
 export default function StudioScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
-  const { customerInfo, isPro, isLoading: subLoading, refresh: refreshSub } = usePurchases();
+  const { customerInfo, isPro, isOverridden, isLoading: subLoading, refresh: refreshSub } = usePurchases();
   const { profile, brands, defaultBrand, loading: authLoading, isGuest, signOut, updateProfile, updateDefaultBrand, updateBrandPlatforms } = useAuth();
  
   const [isEditing, setIsEditing] = useState(false);
@@ -78,6 +80,7 @@ export default function StudioScreen() {
   const [avatarId, setAvatarId] = useState('person');
   const [showSettings, setShowSettings] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [initialState, setInitialState] = useState<any>(null);
 
   // Sync with Supabase Profile & Brand
   useEffect(() => {
@@ -96,7 +99,19 @@ export default function StudioScreen() {
     }
   }, [profile, defaultBrand, isEditing]); // Re-sync when entering/exiting edit mode for 'Cancel' effect
 
+  const hasChanges = initialState ? (
+    alias !== initialState.alias ||
+    discovery !== initialState.discovery ||
+    shopName !== initialState.shopName ||
+    industry !== initialState.industry ||
+    brandIdentity !== initialState.brandIdentity ||
+    goal !== initialState.goal ||
+    frequency !== initialState.frequency ||
+    JSON.stringify(selectedPlatforms.sort()) !== JSON.stringify(initialState.platforms.sort())
+  ) : false;
+
   const handleSaveSettings = async () => {
+    if (!hasChanges) return;
     setSaving(true);
     try {
       // 1. Update Core User (users table)
@@ -111,17 +126,16 @@ export default function StudioScreen() {
         industry: industry,
         brand_identity: brandIdentity,
         primary_goal: goal,
-        preferred_tone: tone,
+        preferred_tone: 'Professional', // Defaulting as removed from UI
         marketing_frequency: frequency
       });
 
       // 3. Update Platforms (brand_platforms table)
-      if (selectedPlatforms.length > 0) {
-        await updateBrandPlatforms(selectedPlatforms);
-      }
+      await updateBrandPlatforms(selectedPlatforms);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setIsEditing(false);
+      setInitialState(null); // Force re-sync
     } catch (e) {
       Alert.alert("Error", "Could not save settings.");
     } finally {
@@ -144,14 +158,19 @@ export default function StudioScreen() {
   const handleRestorePurchases = async () => {
     setRestoring(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Clear any local pro overrides to allow RevenueCat to restore state
+    await StorageService.setDeveloperProOverride(null);
+    
     const info = await restorePurchases();
     setRestoring(false);
     if (info?.entitlements.active[ENTITLEMENT_ID]) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Restored!', 'Your Socify Pro subscription has been restored.');
-      refreshSub();
+      await refreshSub();
     } else {
       Alert.alert('No Previous Purchase', 'No active subscription was found for this account.');
+      await refreshSub();
     }
   };
 
@@ -238,6 +257,10 @@ export default function StudioScreen() {
     if (!profile) return;
     setSaving(true);
     try {
+      // 1. Update local override first to prevent hook from flipping it back
+      await StorageService.setDeveloperProOverride(false);
+      
+      // 2. Update Supabase
       const { error } = await supabase
         .from('users')
         .update({ is_pro: false, credits: 0 })
@@ -422,6 +445,11 @@ export default function StudioScreen() {
                     {isGuest ? 'Guest Mode ✦' : planLabel}
                   </Text>
                 </View>
+                {isOverridden && (
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: theme.danger, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    (Manual Override)
+                  </Text>
+                )}
               </View>
 
               {!isEditing && (
@@ -438,27 +466,22 @@ export default function StudioScreen() {
             </View>
 
             <View style={styles.settingsBlock}>
-              <ExpandableSettingsRow icon="person-outline" title="Creator Profile" description="Your name and discovery source" theme={theme}>
+              <ExpandableSettingsRow icon="person-outline" title="Creator Profile" description="Your alias and identity" theme={theme}>
                 <View style={styles.editorContent}>
                   <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Alias / Full Name</Text>
+                    <View style={styles.labelRow}>
+                      <Text style={[styles.inputLabel, { color: theme.icon }]}>Alias / Full Name</Text>
+                      <Text style={[styles.charCount, { color: alias.length >= CHARACTER_LIMITS.ALIAS ? theme.danger : theme.icon }]}>
+                        {alias.length}/{CHARACTER_LIMITS.ALIAS}
+                      </Text>
+                    </View>
                     <TextInput 
                       style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
                       value={alias} 
                       onChangeText={setAlias}
                       editable={isEditing}
+                      maxLength={CHARACTER_LIMITS.ALIAS}
                       placeholder="e.g. Creative Director"
-                      placeholderTextColor={theme.icon}
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>How did you find us?</Text>
-                    <TextInput 
-                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
-                      value={discovery} 
-                      onChangeText={setDiscovery}
-                      editable={isEditing}
-                      placeholder="e.g. Instagram, Referral"
                       placeholderTextColor={theme.icon}
                     />
                   </View>
@@ -468,34 +491,45 @@ export default function StudioScreen() {
               <ExpandableSettingsRow icon="business-outline" title="Brand Identity" description="Your business and focus" theme={theme}>
                 <View style={styles.editorContent}>
                   <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Business / Shop Name</Text>
+                    <View style={styles.labelRow}>
+                      <Text style={[styles.inputLabel, { color: theme.icon }]}>Business / Shop Name</Text>
+                      <Text style={[styles.charCount, { color: shopName.length >= CHARACTER_LIMITS.SHOP_NAME ? theme.danger : theme.icon }]}>
+                        {shopName.length}/{CHARACTER_LIMITS.SHOP_NAME}
+                      </Text>
+                    </View>
                     <TextInput 
                       style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
                       value={shopName} 
                       onChangeText={setShopName}
                       editable={isEditing}
+                      maxLength={CHARACTER_LIMITS.SHOP_NAME}
                       placeholder="My Creative Studio"
                       placeholderTextColor={theme.icon}
                     />
                   </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Industry (Sector)</Text>
-                    <TextInput 
-                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
-                      value={industry} 
-                      onChangeText={setIndustry}
-                      editable={isEditing}
-                      placeholder="e.g. Tech, Fashion, Design"
-                      placeholderTextColor={theme.icon}
+                  <View style={[styles.inputGroup, { marginTop: 16 }]}>
+                    <SettingsPicker 
+                      label="Industry (Sector)"
+                      value={industry}
+                      options={ONBOARDING_OPTIONS.INDUSTRIES}
+                      onSelect={(val) => setIndustry(val as string)}
+                      theme={theme}
+                      enabled={isEditing}
                     />
                   </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Brand Concept</Text>
+                  <View style={[styles.inputGroup, { marginTop: 16 }]}>
+                    <View style={styles.labelRow}>
+                      <Text style={[styles.inputLabel, { color: theme.icon }]}>Brand Concept</Text>
+                      <Text style={[styles.charCount, { color: brandIdentity.length >= CHARACTER_LIMITS.BRAND_IDENTITY ? theme.danger : theme.icon }]}>
+                        {brandIdentity.length}/{CHARACTER_LIMITS.BRAND_IDENTITY}
+                      </Text>
+                    </View>
                     <TextInput 
                       style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
                       value={brandIdentity} 
                       onChangeText={setBrandIdentity}
                       editable={isEditing}
+                      maxLength={CHARACTER_LIMITS.BRAND_IDENTITY}
                       placeholder="Describe your brand mood..."
                       placeholderTextColor={theme.icon}
                       multiline={isEditing}
@@ -507,38 +541,39 @@ export default function StudioScreen() {
               <ExpandableSettingsRow icon="rocket-outline" title="Marketing Strategy" description="Goals and frequency" theme={theme}>
                 <View style={styles.editorContent}>
                   <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Primary Goal</Text>
-                    <TextInput 
-                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
-                      value={goal} 
-                      onChangeText={setGoal}
-                      editable={isEditing}
-                      placeholder="e.g. Sales, Grow Community"
-                      placeholderTextColor={theme.icon}
+                    <SettingsPicker 
+                      label="Primary Goal"
+                      value={goal}
+                      options={ONBOARDING_OPTIONS.GOALS}
+                      onSelect={(val) => setGoal(val as string)}
+                      theme={theme}
+                      enabled={isEditing}
                     />
                   </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Tone of Voice</Text>
-                    <TextInput 
-                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
-                      value={tone} 
-                      onChangeText={setTone}
-                      editable={isEditing}
-                      placeholder="e.g. Casual, Bold, Minimalist"
-                      placeholderTextColor={theme.icon}
+                  <View style={[styles.inputGroup, { marginTop: 16 }]}>
+                    <SettingsPicker 
+                      label="Publishing Frequency"
+                      value={frequency}
+                      options={ONBOARDING_OPTIONS.FREQUENCY}
+                      onSelect={(val) => setFrequency(val as string)}
+                      theme={theme}
+                      enabled={isEditing}
                     />
                   </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, { color: theme.icon }]}>Publishing Frequency</Text>
-                    <TextInput 
-                      style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border, opacity: isEditing ? 1 : 0.6 }]} 
-                      value={frequency} 
-                      onChangeText={setFrequency}
-                      editable={isEditing}
-                      placeholder="e.g. Daily, 3 times/week"
-                      placeholderTextColor={theme.icon}
-                    />
-                  </View>
+                </View>
+              </ExpandableSettingsRow>
+
+              <ExpandableSettingsRow icon="share-social-outline" title="Active Platforms" description="Where you build your presence" theme={theme}>
+                <View style={styles.editorContent}>
+                  <SettingsPicker 
+                    label="Social Channels"
+                    value={selectedPlatforms}
+                    options={ONBOARDING_OPTIONS.PLATFORMS}
+                    onSelect={(val) => setSelectedPlatforms(val as string[])}
+                    multiSelect
+                    theme={theme}
+                    enabled={isEditing}
+                  />
                 </View>
               </ExpandableSettingsRow>
 
@@ -702,9 +737,12 @@ export default function StudioScreen() {
                       <Text style={[styles.cancelFooterBtnText, { color: theme.icon }]}>Cancel</Text>
                     </Pressable>
                     <Pressable 
-                      style={[styles.saveFooterBtn, { backgroundColor: theme.primary }]} 
+                      style={[
+                        styles.saveFooterBtn, 
+                        { backgroundColor: hasChanges ? theme.primary : theme.border, opacity: hasChanges ? 1 : 0.5 }
+                      ]} 
                       onPress={handleSaveSettings}
-                      disabled={saving}
+                      disabled={saving || !hasChanges}
                     >
                       {saving ? (
                          <ActivityIndicator size="small" color={theme.background} />
@@ -815,6 +853,8 @@ const styles = StyleSheet.create({
     marginTop: 4 
   },
   editProfileTriggerText: { fontSize: 13, fontWeight: '700' },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  charCount: { fontSize: 10, fontWeight: '700', opacity: 0.8 },
 
   stickyFooterContainer: {
     position: 'absolute',

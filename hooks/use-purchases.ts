@@ -9,6 +9,7 @@ interface PurchasesState {
   isPro: boolean;
   isLoading: boolean;
   error: string | null;
+  isOverridden: boolean;
   refresh: () => Promise<void>;
 }
 
@@ -16,14 +17,24 @@ export function usePurchases(): PurchasesState {
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [override, setOverride] = useState<boolean | null>(null);
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    const info = await getCustomerInfo();
-    setCustomerInfo(info);
-    if (!info) setError('Could not load subscription status.');
-    setIsLoading(false);
+    try {
+      const [info, devOverride] = await Promise.all([
+        getCustomerInfo(),
+        StorageService.getDeveloperProOverride()
+      ]);
+      setCustomerInfo(info);
+      setOverride(devOverride);
+      if (!info && devOverride === null) setError('Could not load subscription status.');
+    } catch (e) {
+      setError('Unexpected error loading purchases.');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -41,7 +52,9 @@ export function usePurchases(): PurchasesState {
     };
   }, [refresh]);
 
-  const isPro = hasPro(customerInfo);
+  // Priority: Developer Override > RevenueCat Detection
+  const isPro = override !== null ? override : hasPro(customerInfo);
+  const isOverridden = override !== null;
 
   // Sync IsPro status to Supabase for RLS/Security use
   useEffect(() => {
@@ -87,6 +100,7 @@ export function usePurchases(): PurchasesState {
     isPro,
     isLoading,
     error,
+    isOverridden,
     refresh,
   };
 }

@@ -18,10 +18,13 @@ export interface DesignTemplate {
     id: string;
     title: string;
     category: string;
-    thumbnailUrl?: string;
-    videoPreviewUrl?: string;
+    thumbnail_url?: string;
+    video_preview_url?: string;
+    tutorial_video_url?: string;
     requirements?: TemplateRequirement[];
     defaultCaptionMode?: 'auto' | 'manual' | 'none';
+    is_pro?: boolean;
+    pro?: boolean;
 }
 
 export interface GeneratedAsset {

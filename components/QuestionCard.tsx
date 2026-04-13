@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TextInput, Pressable, Dimensions } from 'react-native';
+import { Ionicons, FontAwesome6, Entypo, AntDesign } from '@expo/vector-icons';
 import Animated, { 
   FadeInRight,
   FadeIn,
@@ -19,13 +20,25 @@ interface QuestionCardProps {
   options?: string[];
   placeholder?: string;
   multiSelect?: boolean;
+  maxLength?: number;
   onValueChange: (value: string | string[]) => void;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const OptionChip = ({ option, isSelected, theme, onPress }: any) => {
+const PLATFORM_ICONS: Record<string, any> = {
+  'Instagram': { provider: FontAwesome6, name: 'instagram' },
+  'TikTok': { provider: FontAwesome6, name: 'tiktok' },
+  'YouTube': { provider: FontAwesome6, name: 'youtube' },
+  'LinkedIn': { provider: FontAwesome6, name: 'linkedin' },
+  'Facebook': { provider: FontAwesome6, name: 'facebook' },
+  'Threads': { provider: FontAwesome6, name: 'threads' },
+  'Pinterest': { provider: FontAwesome6, name: 'pinterest' },
+};
+
+const OptionChip = ({ option, isSelected, theme, onPress, showIcon }: any) => {
   const scale = useSharedValue(1);
+  const IconComponent = PLATFORM_ICONS[option]?.provider;
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -50,13 +63,32 @@ const OptionChip = ({ option, isSelected, theme, onPress }: any) => {
         { 
           backgroundColor: isSelected ? theme.primary : theme.card,
           borderColor: isSelected ? theme.primary : theme.border,
+          shadowColor: isSelected ? theme.primary : 'transparent',
+          shadowOpacity: isSelected ? 0.3 : 0,
+          shadowRadius: 10,
+          elevation: isSelected ? 5 : 0,
+          paddingLeft: showIcon && PLATFORM_ICONS[option] ? 14 : 20,
         }
       ]}
     >
-      <Text style={[styles.chipText, { color: isSelected ? theme.background : theme.text }]}>
+      {showIcon && IconComponent && (
+        <IconComponent 
+          name={PLATFORM_ICONS[option].name} 
+          size={18} 
+          color={isSelected ? theme.background : theme.text} 
+          style={{ marginRight: 8 }}
+        />
+      )}
+      <Text style={[
+        styles.chipText, 
+        { 
+          color: isSelected ? theme.background : theme.text,
+          fontWeight: isSelected ? '700' : '500'
+        }
+      ]}>
         {option}
       </Text>
-      {isSelected && (
+      {isSelected && !showIcon && (
         <Animated.View 
           entering={FadeIn.duration(200)}
           exiting={FadeOut.duration(200)}
@@ -67,7 +99,7 @@ const OptionChip = ({ option, isSelected, theme, onPress }: any) => {
   );
 };
 
-export const QuestionCard = ({ type, options, placeholder, multiSelect = true, onValueChange }: QuestionCardProps) => {
+export const QuestionCard = ({ type, options, placeholder, multiSelect = true, maxLength, onValueChange }: QuestionCardProps) => {
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
@@ -129,7 +161,8 @@ export const QuestionCard = ({ type, options, placeholder, multiSelect = true, o
                   option={option} 
                   isSelected={isSelected} 
                   theme={theme} 
-                  onPress={toggleOption} 
+                  onPress={toggleOption}
+                  showIcon={options.some(opt => PLATFORM_ICONS[opt])}
                 />
               </Animated.View>
             );
@@ -169,7 +202,7 @@ export const QuestionCard = ({ type, options, placeholder, multiSelect = true, o
           { 
             backgroundColor: theme.card,
             color: theme.text,
-            borderColor: theme.border,
+            borderColor: inputValue.length > 0 ? theme.primary : theme.border,
           }
         ]}
         placeholder={placeholder}
@@ -177,9 +210,15 @@ export const QuestionCard = ({ type, options, placeholder, multiSelect = true, o
         value={inputValue}
         onChangeText={handleInputChange}
         selectionColor={theme.primary}
-        autoCapitalize="words"
-        autoCorrect={false}
+        autoCapitalize="sentences"
+        autoCorrect={true}
+        maxLength={maxLength}
       />
+      {maxLength && (
+        <Text style={[styles.characterCount, { color: theme.icon }]}>
+          {inputValue.length}/{maxLength}
+        </Text>
+      )}
     </Animated.View>
   );
 };
@@ -234,5 +273,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  characterCount: {
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'right',
+    fontWeight: '600',
+    paddingRight: 10,
   },
 });

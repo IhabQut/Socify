@@ -42,7 +42,6 @@ export interface OnboardingParams {
   hasLocalShop: boolean;
   frequency: string;
   goal: string;
-  tone: string;
   platforms: string[];
 }
 
@@ -187,7 +186,7 @@ export function useAuth() {
         has_local_shop: params.hasLocalShop,
         marketing_frequency: params.frequency,
         primary_goal: params.goal,
-        preferred_tone: params.tone,
+        preferred_tone: 'Professional', // Default to professional if removed from UI
         is_default: true
       }).select().single();
 
@@ -202,7 +201,9 @@ export function useAuth() {
           'TikTok': 'tiktok',
           'Twitter/X': 'twitter',
           'LinkedIn': 'linkedin',
-          'YouTube': 'youtube'
+          'YouTube': 'youtube',
+          'Threads': 'threads',
+          'Pinterest': 'pinterest'
         };
 
         const platformInserts = params.platforms
