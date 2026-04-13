@@ -68,7 +68,7 @@ const INPUT_BAR_H = 76;
 const ChatModal = ({ visible, onClose, theme, insets, startY }: {
   visible: boolean; onClose: () => void; theme: any; insets: any; startY: number;
 }) => {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [messages,  setMessages]  = useState<Message[]>([INIT_MSG]);
   const [history,   setHistory]   = useState<ChatMessage[]>([]);
   const [sessionId, setSessionId] = useState<string|null>(null);
@@ -309,6 +309,9 @@ const ToolModal = ({ tool, visible, onClose, theme }: any) => {
       ]);
       return;
     }
+
+    // Refresh profile to update balance in UI
+    refreshProfile();
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setOutput(''); setLoading(true);

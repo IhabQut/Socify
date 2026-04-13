@@ -113,9 +113,12 @@ export default function CalendarScreen() {
     if (!isPro) { setLoading(false); return; }
     setLoading(true);
     
-    let start = await StorageService.getPlanStartDate();
+    const remoteMetadata = profile?.metadata || {};
+    let start = remoteMetadata.roadmap_start_date || await StorageService.getPlanStartDate();
+    
     if (!start) {
       start = Date.now();
+      await updateProfile({ metadata: { ...remoteMetadata, roadmap_start_date: start } });
       await StorageService.setPlanStartDate(start);
     }
     setPlanStartDate(start);
@@ -131,11 +134,10 @@ export default function CalendarScreen() {
       dayListRef.current?.scrollToIndex({ index: clampedDay - 1, animated: true, viewPosition: 0.5 });
     }, 500);
 
-    const completed = await StorageService.getCompletedTasks();
+    const completed = remoteMetadata.completed_tasks || await StorageService.getCompletedTasks();
     setCompletedTasks(completed);
 
-    const balance = await StorageService.getUserCredits();
-    setCredits(balance);
+    setCredits(profile?.credits || 0);
 
     // Schedule daily reminder at 10 AM if not already set
     NotificationService.scheduleDailyReminder(10, 0);
@@ -164,13 +166,34 @@ export default function CalendarScreen() {
     if (completedTasks.includes(taskId)) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const success = await StorageService.markTaskComplete(taskId);
-    if (success) {
-      await StorageService.grantCredits(reward);
-      setCompletedTasks(prev => [...prev, taskId]);
-      setCredits(prev => prev + reward);
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 2000);
+    
+    // 1. Sync to Cloud (Primary Source of Truth)
+    const newCompleted = [...completedTasks, taskId];
+    const { error: syncError } = await updateProfile({
+      metadata: { 
+        ...(profile?.metadata || {}), 
+        roadmap_start_date: planStartDate,
+        completed_tasks: newCompleted 
+      }
+    });
+
+    if (!syncError) {
+      // 2. Grant Credits via Secure RPC
+      const creditRes = await CreditService.addCredits(reward);
+      if (creditRes.success) {
+        setCompletedTasks(newCompleted);
+        setCredits(creditRes.remaining || (credits + reward));
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 2000);
+        
+        // 3. Update Legacy Storage (Offline Fallback)
+        await StorageService.markTaskComplete(taskId);
+        await StorageService.grantCredits(reward);
+      } else {
+        Alert.alert("Sync Error", "Failed to grant credits. Please check your connection.");
+      }
+    } else {
+      Alert.alert("Sync Error", "Failed to save progress. Please try again.");
     }
   };
 

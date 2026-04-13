@@ -290,7 +290,7 @@ export default function TemplateExecutionScreen() {
     const theme = Colors[colorScheme];
     const insets = useSafeAreaInsets();
     const { isPro } = usePurchases();
-    const { profile } = useAuth();
+    const { profile, refreshProfile } = useAuth();
 
     const [template, setTemplate] = useState<DesignTemplate | null>(null);
     const [responses, setResponses] = useState<Record<string, string>>({});
@@ -551,6 +551,9 @@ export default function TemplateExecutionScreen() {
                                 ]);
                                 return;
                             }
+
+                            // Refresh profile state after successful deduction
+                            refreshProfile();
 
                             if (template.id !== 'default') {
                                 const { error } = await supabase.from('generated_assets').insert({

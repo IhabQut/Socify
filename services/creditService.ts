@@ -47,4 +47,26 @@ export class CreditService {
     if (error || !data) return false;
     return data.credits >= required;
   }
+
+  /**
+   * Grant credits to the user after completing a task or promotion.
+   * Remote operation ensures cross-device consistency.
+   */
+  static async addCredits(amount: number): Promise<CreditResponse> {
+    try {
+      const { data, error } = await supabase.rpc('add_credits', {
+        amount_to_add: amount
+      });
+
+      if (error) {
+        console.error('[CreditService] Add RPC Error:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, remaining: (data as any).new_balance };
+    } catch (e: any) {
+      console.error('[CreditService] Unexpected Add Error:', e);
+      return { success: false, error: 'Database sync failed.' };
+    }
+  }
 }
