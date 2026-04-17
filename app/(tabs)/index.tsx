@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, Pressable, FlatList, Dimensions, ActivityIndicator, TextInput, Alert, Image } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Pressable, FlatList, Dimensions, ActivityIndicator, TextInput, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInUp, useSharedValue, useAnimatedStyle, withSpring, FadeIn, withRepeat, withTiming } from 'react-native-reanimated';
 import { Colors } from '@/constants/theme';
@@ -118,33 +119,43 @@ export default function CreativeScreen() {
   async function fetchData() {
     setLoading(true);
     setError(null);
+
+    // Fetch categories — non-fatal if table doesn't exist yet
     try {
-      // Fetch categories ordered by sort_order
       const { data: cats, error: catErr } = await supabase
         .from('categories')
         .select('*')
         .order('sort_order', { ascending: true });
 
-      if (catErr) throw catErr;
+      if (!catErr) {
+        setCategories(cats || []);
+      } else {
+        console.warn('[fetchData] categories table not available:', catErr.message);
+      }
+    } catch (e) {
+      console.warn('[fetchData] categories fetch failed silently:', e);
+    }
 
-      // Fetch all templates
+    // Fetch templates — this is the critical data path
+    try {
       const { data: tmpls, error: tmplErr } = await supabase
         .from('templates')
-        .select('*');
+        .select('*')
+        .limit(50);
 
       if (tmplErr) throw tmplErr;
 
-      // Group templates by category_id
+      // Group templates by category_id OR category string
       const grouped: Record<string, any[]> = {};
       (tmpls || []).forEach((t: any) => {
-        const key = t.category_id || t.category;
+        const key = t.category_id || t.category || 'Uncategorized';
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(t);
       });
 
-      setCategories(cats || []);
       setTemplatesByCategory(grouped);
     } catch (e: any) {
+      console.error('[fetchData] templates error:', e?.message || e);
       setError('Could not load templates. Check your connection.');
     } finally {
       setLoading(false);
@@ -158,7 +169,7 @@ export default function CreativeScreen() {
         <View style={styles.headerLeft}>
           <Animated.View style={animatedLogoStyle}>
             <Image 
-              source={require('@/assets/images/logo.png')} 
+              source={require('../../assets/images/logo.png')} 
               style={{ width: 32, height: 32 }} 
               resizeMode="contain" 
             />

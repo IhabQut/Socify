@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, View, Text, Pressable, Image, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, Pressable, Dimensions } from 'react-native';
+import { Image } from 'expo-image';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -26,7 +27,7 @@ interface TemplateCardProps {
   height?: number;
 }
 
-export const TemplateCard = ({ template, theme, colorScheme, width: cardWidth = width * 0.46, height: cardHeight = 180 }: TemplateCardProps) => {
+export const TemplateCard = React.memo(({ template, theme, colorScheme, width: cardWidth = width * 0.46, height: cardHeight = 180 }: TemplateCardProps) => {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const { isPro } = usePurchases();
@@ -77,7 +78,7 @@ export const TemplateCard = ({ template, theme, colorScheme, width: cardWidth = 
       </View>
     </AnimatedPressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: { 

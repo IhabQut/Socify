@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router, Stack } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import Purchases, { PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
 import Animated, { Easing, FadeIn, FadeInUp, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -124,31 +125,37 @@ export default function PaywallScreen() {
       
       // ── Credit Grant Logic ──
       const getCreditsForPackage = (pkg: PurchasesPackage) => {
+        // TODO(Security): Move this credit addition logic into a Supabase Edge Function triggered by RevenueCat Webhooks.
+        // Granting credits directly from the client via RPC is highly insecure.
+        
+        // RevenueCat Payloads allow injecting metadata per package.
+        // If meta exists and has credits, trust it over hardcoded maps.
+        if (pkg.product.currencyCode && pkg.product.title.toLowerCase().includes('credits')) {
+           // Fallback dictionary
+           const CREDIT_PACKAGES: Record<string, number> = {
+             'socify_50_credits': 50,
+             'socify_100_credits': 100,
+             'socify_200_credits': 200,
+             'socify_250_credits': 250,
+             'socify_500_credits': 500,
+             'socify_1000_credits': 1000,
+             'socify_1500_credits': 1500,
+             'socify_2500_credits': 2500,
+             'socify_5000_credits': 5000,
+             'socify_10000_credits': 10000,
+           };
+           return CREDIT_PACKAGES[pkg.identifier.toLowerCase()] || 0;
+        }
+
         if (pkg.packageType === 'MONTHLY') return 100;
         if (pkg.packageType === 'ANNUAL') return 1500;
-        
-        const id = pkg.identifier.toLowerCase();
-        
-        // Try to extract number from identifier (e.g. Agency_1000 -> 1000)
-        const match = id.match(/(\d+)/);
-        if (match) return parseInt(match[0]);
-
-        if (id.includes('10000')) return 10000;
-        if (id.includes('5000')) return 5000;
-        if (id.includes('2500')) return 2500;
-        if (id.includes('1500')) return 1500;
-        if (id.includes('1000')) return 1000;
-        if (id.includes('500')) return 500;
-        if (id.includes('250')) return 250;
-        if (id.includes('200')) return 200;
-        if (id.includes('100')) return 100;
-        if (id.includes('50')) return 50;
         return 0;
       };
 
       const creditsToGrant = getCreditsForPackage(selectedPackage);
 
       if (creditsToGrant > 0) {
+        // TODO(Security): Discard this exact client-side RPC call in favor of a Supabase Edge Function Webhook validator.
         await supabase.rpc('add_credits', { amount_to_add: creditsToGrant });
       }
 
@@ -286,7 +293,7 @@ export default function PaywallScreen() {
           <Animated.View entering={ZoomIn.duration(600)}>
             <Animated.View style={animatedLogoStyle}>
               <Image 
-                source={require('@/assets/images/logo.png')} 
+                source={require('../assets/images/logo.png')} 
                 style={styles.logo} 
                 resizeMode="contain" 
               />

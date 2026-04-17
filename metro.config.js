@@ -3,7 +3,17 @@ const { getDefaultConfig } = require('expo/metro-config');
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
-// Add .js and .json to specifically help resolve modules that omit extensions in node_modules
-config.resolver.sourceExts.push('js', 'json', 'ts', 'tsx');
+const { transformer, resolver } = config;
+
+config.transformer = {
+  ...transformer,
+  babelTransformerPath: require.resolve("react-native-svg-transformer/expo")
+};
+
+config.resolver = {
+  ...resolver,
+  assetExts: resolver.assetExts.filter((ext) => ext !== "svg"),
+  sourceExts: [...resolver.sourceExts, "svg", "js", "json", "ts", "tsx"]
+};
 
 module.exports = config;

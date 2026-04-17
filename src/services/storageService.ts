@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 const ONBOARDING_KEY = '@socify_onboarded';
 const CHAT_HISTORY_KEY = '@socify_chat_history';
@@ -20,7 +21,7 @@ export interface UserProfile {
 export class StorageService {
   static async saveUserProfile(profile: UserProfile) {
     try {
-      await AsyncStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
+      await SecureStore.setItemAsync(USER_PROFILE_KEY, JSON.stringify(profile));
     } catch (e) {
       console.warn("Storage Error:", e);
     }
@@ -28,7 +29,7 @@ export class StorageService {
 
   static async loadUserProfile(): Promise<UserProfile | null> {
     try {
-      const value = await AsyncStorage.getItem(USER_PROFILE_KEY);
+      const value = await SecureStore.getItemAsync(USER_PROFILE_KEY);
       if (value !== null) {
         return JSON.parse(value);
       }
@@ -55,7 +56,7 @@ export class StorageService {
     }
   }
 
-  static async saveChatHistory(messages: any[]) {
+  static async saveChatHistory(messages: Record<string, unknown>[]) {
     try {
       await AsyncStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
     } catch (e) {
@@ -63,7 +64,7 @@ export class StorageService {
     }
   }
 
-  static async loadChatHistory(): Promise<any[] | null> {
+  static async loadChatHistory(): Promise<Record<string, unknown>[] | null> {
     try {
       const value = await AsyncStorage.getItem(CHAT_HISTORY_KEY);
       if (value !== null) {
@@ -85,7 +86,7 @@ export class StorageService {
 
   static async getGenerationCount(): Promise<number> {
     try {
-      const val = await AsyncStorage.getItem(GEN_COUNT_KEY);
+      const val = await SecureStore.getItemAsync(GEN_COUNT_KEY);
       return val ? parseInt(val) : 0;
     } catch { return 0; }
   }
@@ -94,21 +95,21 @@ export class StorageService {
     try {
       const current = await this.getGenerationCount();
       const next = current + 1;
-      await AsyncStorage.setItem(GEN_COUNT_KEY, next.toString());
+      await SecureStore.setItemAsync(GEN_COUNT_KEY, next.toString());
       return next;
     } catch { return 0; }
   }
 
   static async getUserCredits(): Promise<number> {
     try {
-      const val = await AsyncStorage.getItem(CREDITS_KEY);
+      const val = await SecureStore.getItemAsync(CREDITS_KEY);
       return val ? parseInt(val) : 0;
     } catch { return 0; }
   }
 
   static async setUserCredits(credits: number) {
     try {
-      await AsyncStorage.setItem(CREDITS_KEY, credits.toString());
+      await SecureStore.setItemAsync(CREDITS_KEY, credits.toString());
     } catch (e) { console.warn("Storage Error:", e); }
   }
 
@@ -183,7 +184,7 @@ export class StorageService {
 
   static async getDeveloperProOverride(): Promise<boolean | null> {
     try {
-      const val = await AsyncStorage.getItem(DEV_PRO_OVERRIDE_KEY);
+      const val = await SecureStore.getItemAsync(DEV_PRO_OVERRIDE_KEY);
       if (val === null) return null;
       return val === 'true';
     } catch { return null; }
@@ -192,9 +193,9 @@ export class StorageService {
   static async setDeveloperProOverride(isPro: boolean | null) {
     try {
       if (isPro === null) {
-        await AsyncStorage.removeItem(DEV_PRO_OVERRIDE_KEY);
+        await SecureStore.deleteItemAsync(DEV_PRO_OVERRIDE_KEY);
       } else {
-        await AsyncStorage.setItem(DEV_PRO_OVERRIDE_KEY, isPro.toString());
+        await SecureStore.setItemAsync(DEV_PRO_OVERRIDE_KEY, isPro.toString());
       }
     } catch (e) { console.warn("Storage Error:", e); }
   }

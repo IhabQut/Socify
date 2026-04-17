@@ -3,6 +3,7 @@
  * Model: Qwen3 Next 80B A3B Instruct (free)
  */
 
+// TODO(Security): Move this entire OpenRouter pipeline to a Supabase Edge Function to protect the API key from client exposure.
 const OPENROUTER_API_KEY = process.env.EXPO_PUBLIC_OPENROUTER_API_KEY;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 

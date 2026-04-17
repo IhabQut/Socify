@@ -2,16 +2,12 @@ import { Tabs, Redirect } from 'expo-router';
 import React from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
 
-import { HapticTab } from '@/components/haptic-tab';
+import { HapticTab } from '@/components/ui/HapticTab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/use-auth';
-import * as WebBrowser from 'expo-web-browser';
-
-// This invokes the WebBrowser handoff logic so OAuth callbacks behave flawlessly on physical devices
-WebBrowser.maybeCompleteAuthSession();
 
 export default function TabLayout() {
   const colorScheme = useColorScheme() ?? 'dark';

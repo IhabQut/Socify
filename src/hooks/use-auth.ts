@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import { identifyUser } from '@/lib/purchases';
@@ -44,9 +44,12 @@ export interface OnboardingParams {
   frequency: string;
   goal: string;
   platforms: string[];
+  country?: string;
 }
 
-export function useAuth() {
+import { createContext, useContext, ReactNode } from 'react';
+
+export function useAuthInternal() {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -172,18 +175,8 @@ export function useAuth() {
     if (!currentUser) return { error: new Error('Not authenticated') };
     setLoading(true);
     try {
-      
-      // Attempt to silently geolocate the user's country
-      let resolvedCountry = 'Unknown';
-      try {
-        const geoResponse = await fetch('https://ipapi.co/json/');
-        if (geoResponse.ok) {
-           const geoData = await geoResponse.json();
-           resolvedCountry = `${geoData.city}, ${geoData.country_name}`;
-        }
-      } catch (e) {
-        console.warn("Geolocation fetch failed, defaulting to Unknown.");
-      }
+      // Geoloc resolution is now handled by the UI before invoking
+      let resolvedCountry = params.country || 'Unknown';
 
       // 1. Update/Create Core User Table (using upsert to avoid FK errors)
       const { error: userError } = await supabase.from('users').upsert({
@@ -252,12 +245,12 @@ export function useAuth() {
     }
   }
 
-  async function linkAccount(provider: 'apple' | 'google') {
+  async function linkAccount(provider: 'apple' | 'google', redirectPath: string = '/(tabs)') {
     setLoading(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
-      const redirectUrl = Linking.createURL('/(tabs)');
+      const redirectUrl = Linking.createURL(redirectPath);
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -368,4 +361,19 @@ export function useAuth() {
     hasCompletedOnboarding: profile?.onboarding_completed ?? false,
     refreshProfile
   };
+}
+
+const AuthContext = createContext<ReturnType<typeof useAuthInternal> | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const auth = useAuthInternal();
+  return React.createElement(AuthContext.Provider, { value: auth }, children);
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }

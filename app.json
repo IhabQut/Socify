@@ -39,8 +39,8 @@
           }
         }
       ],
-      "expo-sqlite",
-      "expo-av"
+      "expo-av",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

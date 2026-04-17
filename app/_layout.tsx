@@ -7,10 +7,17 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, AuthProvider } from '@/hooks/use-auth';
 import { configurePurchases } from '@/lib/purchases';
 import * as Notifications from 'expo-notifications';
 import { NotificationService } from '@/services/notificationService';
+import * as WebBrowser from 'expo-web-browser';
+
+if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_KEY) {
+  throw new Error("Missing critical EXPO_PUBLIC_SUPABASE_URL or KEY. Halting Boot.");
+}
+
+WebBrowser.maybeCompleteAuthSession();
 
 // Prevent splash screen from hiding automatically
 SplashScreen.preventAutoHideAsync();
@@ -29,7 +36,7 @@ export const unstable_settings = {
   initialRouteName: 'index',
 };
 
-export default function RootLayout() {
+function RootLayoutInternal() {
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
   const { loading: authLoading } = useAuth();
@@ -80,3 +87,10 @@ export default function RootLayout() {
   );
 }
 
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootLayoutInternal />
+    </AuthProvider>
+  );
+}

@@ -1,4 +1,4 @@
-import { AnimatedButton } from '@/components/AnimatedButton';
+import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { FloatingParticle } from '@/components/FloatingParticle';
 import { OnboardingLayoutStyle, OnboardingStep } from '@/components/OnboardingStep';
 import { QuestionCard } from '@/components/QuestionCard';
@@ -44,33 +44,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-interface OnboardingData {
-  id: string;
-  title: string;
-  subtitle: string;
-  style: OnboardingLayoutStyle;
-  type?: 'welcome' | 'discovery' | 'question_select' | 'question_input' | 'final';
-  options?: string[];
-  placeholder?: string;
-  multiSelect?: boolean;
-  maxLength?: number;
-}
-
-const ONBOARDING_DATA: OnboardingData[] = [
-  { id: '1', title: "Let's Customize Your Experience", subtitle: "Let's be creative. A space designed specially for creators to share, inspire, and connect.", style: 'hero', type: 'welcome' },
-  { id: '3', title: 'Main Interests', subtitle: 'Select your primary areas of focus. (Select multiple)', style: 'grid', type: 'question_select', options: ['Photography', 'Graphic Design', 'Content Creation', 'Digital Art', 'Video Production', 'Creative Writing', 'Performance Art'], multiSelect: true },
-  { id: '8', title: 'Active Platforms', subtitle: 'Where do you build your presence? (Select multiple)', style: 'grid', type: 'question_select', options: ['Instagram', 'TikTok', 'YouTube', 'LinkedIn', 'Facebook', 'Threads', 'Pinterest'], multiSelect: true },
-  { id: '4', title: 'Primary Goal', subtitle: 'What is your main focus for growth?', style: 'grid', type: 'question_select', options: ['Scale Engagement', 'Monetize Content', 'Build Authority', 'Drive Sales', 'Establish Brand', 'Network & Connect'], multiSelect: false },
-  { id: '9', title: 'Discovery Source', subtitle: 'How did you find your way here?', style: 'centered', type: 'question_select', options: ['App Store', 'Social Media', 'Search Engine', 'Friend Referral', 'Advertisement'], multiSelect: false },
-  { id: '10', title: 'Current Reach', subtitle: 'What is your current follower base?', style: 'centered', type: 'question_select', options: ['0 - 1k', '1k - 10k', '10k - 50k', '50k - 100k', '100k+'], multiSelect: false },
-  { id: '14', title: 'Your Industry', subtitle: 'Which sector best defines your work?', style: 'centered', type: 'question_select', options: ['Beauty & Cosmetics', 'Food & Beverage', 'Fashion & Apparel', 'Real Estate', 'Tech & SaaS', 'Health & Wellness', 'Education', 'Creative Arts', 'Luxury & Lifestyle'], multiSelect: false },
-  { id: '11', title: 'Brand Identity', subtitle: 'Describe your brand essence in a few words.', style: 'centered', type: 'question_input', placeholder: 'e.g., Minimalist Sustainable Fashion', maxLength: 80 },
-  { id: '15', title: 'Shop & Location', subtitle: 'What is your business or alias name?', style: 'centered', type: 'question_input', placeholder: 'Digital Dreamers Co.', maxLength: 40 },
-  { id: '12', title: 'Physical Presence', subtitle: 'Do you operate a physical location?', style: 'centered', type: 'question_select', options: ['Yes, Physical Shop', 'No, Online Only'], multiSelect: false },
-  { id: '13', title: 'Marketing Pulse', subtitle: 'How often do you run social media ads?', style: 'centered', type: 'question_select', options: ['Daily', 'Weekly', 'Monthly', 'Exploring Options'], multiSelect: false },
-  { id: '6', title: 'Alias', subtitle: 'Finally, how should we address you?', style: 'centered', type: 'question_input', placeholder: 'Enter your name...', maxLength: 30 },
-  { id: '7', title: 'Strategy Ready', subtitle: 'We’ve analyzed your profile and prepared a personalized creative engine.', style: 'hero', type: 'final' },
-];
+import { ONBOARDING_DATA, OnboardingData } from '@/constants/onboarding';
 
 const PaginationDot = ({ index, scrollX, theme }: any) => {
   return null; // Dots are replaced by progress bar
@@ -126,6 +100,8 @@ export default function OnboardingScreen() {
   const analysisProgress = useSharedValue(0);
   const [analysisPercentage, setAnalysisPercentage] = useState(0);
   const [analysisText, setAnalysisText] = useState('Analyzing your focus...');
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [activeStep, setActiveStep] = useState(0);
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
@@ -176,19 +152,18 @@ export default function OnboardingScreen() {
     let errorMsg = "Please make a selection to continue.";
 
     if (currentStep.type === 'question_select') {
-      if (currentStep.id === '3') isValid = interests.length > 0;
-      else if (currentStep.id === '8') isValid = platforms.length > 0;
-      else if (currentStep.id === '4') isValid = !!goal;
-      else if (currentStep.id === '9') isValid = !!discovery;
-      else if (currentStep.id === '10') isValid = !!followerCount;
-      else if (currentStep.id === '14') isValid = !!industry;
-      else if (currentStep.id === '12') isValid = true;
-      else if (currentStep.id === '13') isValid = !!frequency;
+      if (currentStep.id === '8')  isValid = platforms.length > 0;
+      if (currentStep.id === '4')  isValid = !!goal;
+      if (currentStep.id === '9')  isValid = !!discovery;
+      if (currentStep.id === '10') isValid = !!followerCount;
+      if (currentStep.id === '14') isValid = !!industry;
+      if (currentStep.id === '12') isValid = true;
+      if (currentStep.id === '13') isValid = !!frequency;
     } else if (currentStep.type === 'question_input') {
       if (currentStep.id === '11') isValid = brandIdentity.trim().length > 0;
-      else if (currentStep.id === '15') isValid = shopName.trim().length > 0;
-      else if (currentStep.id === '6') isValid = alias.trim().length > 0;
-      errorMsg = "Please enter the required information.";
+      if (currentStep.id === '15') isValid = shopName.trim().length > 0;
+      if (currentStep.id === '6')  isValid = alias.trim().length > 0;
+      errorMsg = "Please fill in this field to continue.";
     }
 
     if (!isValid) {
@@ -207,19 +182,25 @@ export default function OnboardingScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       const analysisSteps = [
-        "Analyzing your marketing focus...",
-        "Identifying high-engagement templates...",
-        "Customizing your creative engine...",
-        "Building your personalized strategy...",
-        "Finalizing your creative hub..."
+        { label: "Analyzing your marketing focus",       icon: "analytics-outline" },
+        { label: "Identifying high-engagement templates", icon: "grid-outline" },
+        { label: "Calibrating your creative engine",     icon: "color-wand-outline" },
+        { label: "Building your brand strategy",         icon: "trending-up-outline" },
+        { label: "Personalizing your creative hub",      icon: "sparkles-outline" },
       ];
+
+      setCompletedSteps([]);
+      setActiveStep(0);
 
       for (let i = 0; i < analysisSteps.length; i++) {
         const progress = Math.round(((i + 1) / analysisSteps.length) * 100);
-        setAnalysisText(analysisSteps[i]);
+        setAnalysisText(analysisSteps[i].label);
+        setActiveStep(i);
         setAnalysisPercentage(progress);
-        analysisProgress.value = withTiming(progress, { duration: 800 });
-        await new Promise(r => setTimeout(r, 850));
+        analysisProgress.value = withTiming(progress, { duration: 1000 });
+        await new Promise(r => setTimeout(r, 1400));
+        setCompletedSteps(prev => [...prev, i]);
+        await new Promise(r => setTimeout(r, 180));
       }
 
       setIsSubmitting(true);
@@ -228,6 +209,17 @@ export default function OnboardingScreen() {
         if (!user) {
           const { error: authError } = await signInGuest();
           if (authError) throw authError;
+        }
+
+        let resolvedCountry = 'Unknown';
+        try {
+          const geoResponse = await fetch('https://ipapi.co/json/');
+          if (geoResponse.ok) {
+             const geoData = await geoResponse.json();
+             resolvedCountry = `${geoData.city}, ${geoData.country_name}`;
+          }
+        } catch (e) {
+          console.warn("Geolocation fetch failed, defaulting to Unknown.");
         }
 
         const { error } = await completeOnboarding({
@@ -239,7 +231,8 @@ export default function OnboardingScreen() {
           hasLocalShop: hasLocalShop,
           frequency: frequency,
           goal: goal,
-          platforms: platforms
+          platforms: platforms,
+          country: resolvedCountry
         });
         
         if (error) {
@@ -283,6 +276,7 @@ export default function OnboardingScreen() {
           <OnboardingStep
             title={item.title}
             subtitle={item.subtitle}
+            emoji={item.emoji}
             style={item.style}
           >
             {item.type === 'welcome' && (
@@ -302,14 +296,13 @@ export default function OnboardingScreen() {
                 options={item.options}
                 multiSelect={item.multiSelect}
                 onValueChange={(val) => {
-                  if (item.id === '3') setInterests(val as string[]);
-                  if (item.id === '8') setPlatforms(val as string[]);
-                  if (item.id === '4') { setGoal(val as string); }
-                  if (item.id === '9') { setDiscovery(val as string); }
-                  if (item.id === '10') { setFollowerCount(val as string); }
-                  if (item.id === '14') { setIndustry(val as string); }
-                  if (item.id === '12') { setHasLocalShop(val === 'Yes, Physical Shop'); }
-                  if (item.id === '13') { setFrequency(val as string); }
+                  if (item.id === '8')  setPlatforms(val as string[]);
+                  if (item.id === '4')  setGoal(val as string);
+                  if (item.id === '9')  setDiscovery(val as string);
+                  if (item.id === '10') setFollowerCount(val as string);
+                  if (item.id === '14') setIndustry(val as string);
+                  if (item.id === '12') setHasLocalShop(val === 'Yes — I have a store or office');
+                  if (item.id === '13') setFrequency(val as string);
                 }}
               />
             )}
@@ -399,55 +392,118 @@ export default function OnboardingScreen() {
         </View>
       </View>
 
-      <Modal visible={isAnalyzing} transparent animationType="none">
+      <Modal visible={isAnalyzing} transparent animationType="fade">
         <View style={StyleSheet.absoluteFill}>
           <View style={[styles.analysisOverlay, { backgroundColor: theme.background }]}>
+
+            {/* Ambient glow particles */}
             <View style={StyleSheet.absoluteFill} pointerEvents="none">
-              <FloatingParticle color={theme.accent} size={SCREEN_WIDTH * 0.5} delay={0} duration={8000} />
-              <FloatingParticle color={theme.primary} size={SCREEN_WIDTH * 0.4} delay={2000} duration={10000} />
+              <FloatingParticle color={theme.accent} size={SCREEN_WIDTH * 0.6} delay={0} duration={8000} />
+              <FloatingParticle color={theme.primary} size={SCREEN_WIDTH * 0.5} delay={1500} duration={10000} />
             </View>
 
             <View style={styles.analysisContent}>
-              <Animated.View 
-                entering={FadeInDown.delay(200).duration(800)}
-                style={logoScaleStyle}
-              >
+
+              {/* Logo pulse */}
+              <Animated.View entering={FadeInDown.delay(100).duration(600)} style={logoScaleStyle}>
                 <View style={[styles.logoContainer, { borderColor: theme.border, shadowColor: theme.primary }]}>
-                  <Image 
-                    source={require('@/assets/images/logo.png')} 
+                  <Image
+                    source={require('../assets/images/logo.png')}
                     style={styles.analysisLogo}
                     resizeMode="contain"
                   />
                 </View>
               </Animated.View>
 
-              <View style={styles.analysisTextGroup}>
-                <Animated.Text 
-                  entering={FadeInDown.duration(600)}
-                  key={analysisText} 
-                  style={[styles.analysisTitle, { color: theme.text }]}
-                >
-                  {analysisText}
-                </Animated.Text>
-                <Text style={[styles.analysisSubtitle, { color: theme.icon }]}>
-                  Creating your premium brand strategy
-                </Text>
+              {/* Title */}
+              <Animated.View entering={FadeInDown.delay(200).duration(600)} style={styles.analysisTitleGroup}>
+                <Text style={[styles.analysisTitle, { color: theme.text }]}>Building Your Strategy</Text>
+                <Text style={[styles.analysisSubtitle, { color: theme.icon }]}>Personalizing your Socify experience</Text>
+              </Animated.View>
+
+              {/* Checklist Rows */}
+              <View style={styles.checklistContainer}>
+                {[
+                  { label: "Analyzing your marketing focus",       icon: "analytics-outline" },
+                  { label: "Identifying high-engagement templates", icon: "grid-outline" },
+                  { label: "Calibrating your creative engine",     icon: "color-wand-outline" },
+                  { label: "Building your brand strategy",         icon: "trending-up-outline" },
+                  { label: "Personalizing your creative hub",      icon: "sparkles-outline" },
+                ].map((step, i) => {
+                  const isDone   = completedSteps.includes(i);
+                  const isActive = activeStep === i && !isDone;
+                  return (
+                    <Animated.View
+                      key={i}
+                      entering={FadeInDown.delay(300 + i * 80).duration(500)}
+                      style={[
+                        styles.checkRow,
+                        {
+                          backgroundColor: isDone
+                            ? theme.primary + '12'
+                            : isActive
+                            ? theme.card
+                            : theme.card + '80',
+                          borderColor: isDone
+                            ? theme.primary + '40'
+                            : isActive
+                            ? theme.border
+                            : theme.border + '50',
+                        },
+                      ]}
+                    >
+                      {/* Icon or spinner */}
+                      <View style={[
+                        styles.checkIconWrap,
+                        { backgroundColor: isDone ? theme.primary + '20' : theme.background }
+                      ]}>
+                        {isDone ? (
+                          <Animated.View entering={FadeIn.duration(300)}>
+                            <Ionicons name="checkmark" size={16} color={theme.primary} />
+                          </Animated.View>
+                        ) : isActive ? (
+                          <ActivityIndicator size="small" color={theme.primary} />
+                        ) : (
+                          <Ionicons name={step.icon as any} size={16} color={theme.icon} opacity={0.4} />
+                        )}
+                      </View>
+
+                      {/* Label */}
+                      <Text style={[
+                        styles.checkLabel,
+                        {
+                          color: isDone ? theme.text : isActive ? theme.text : theme.icon,
+                          fontWeight: isDone || isActive ? '700' : '500',
+                          opacity: isDone || isActive ? 1 : 0.5,
+                        }
+                      ]}>
+                        {step.label}
+                      </Text>
+
+                      {/* Done mark */}
+                      {isDone && (
+                        <Animated.View entering={FadeIn.duration(200)}>
+                          <Text style={[styles.checkDoneText, { color: theme.primary }]}>Done</Text>
+                        </Animated.View>
+                      )}
+                    </Animated.View>
+                  );
+                })}
               </View>
 
+              {/* Progress bar + % */}
               <View style={styles.progressContainer}>
                 <View style={[styles.progressTrack, { backgroundColor: theme.card }]}>
-                  <Animated.View 
-                    style={[
-                      styles.progressBar, 
-                      { backgroundColor: theme.primary },
-                      analysisProgressStyle
-                    ]} 
+                  <Animated.View
+                    style={[styles.progressBar, { backgroundColor: theme.primary }, analysisProgressStyle]}
                   />
                 </View>
-                <Text style={[styles.progressPercentage, { color: theme.icon }]}>
-                   {analysisPercentage}%
-                </Text>
+                <View style={styles.progressFooter}>
+                  <Text style={[styles.progressLabel, { color: theme.icon }]}>Analyzing...</Text>
+                  <Text style={[styles.progressPercentage, { color: theme.primary }]}>{analysisPercentage}%</Text>
+                </View>
               </View>
+
             </View>
           </View>
         </View>
@@ -481,8 +537,9 @@ const styles = StyleSheet.create({
   buttonWrapper: { marginTop: 40, alignItems: 'center', width: '100%', paddingHorizontal: 24, zIndex: 50 },
   pagination: { position: 'absolute', bottom: 50, flexDirection: 'row', width: '100%', justifyContent: 'center', alignItems: 'center', gap: 8 },
   dot: { height: 4, borderRadius: 2 },
-  analysisOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
+  analysisOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
   analysisContent: { width: '100%', alignItems: 'center' },
+  analysisTitleGroup: { alignItems: 'center', marginBottom: 32 },
   logoContainer: {
     width: 100,
     height: 100,
@@ -490,7 +547,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
     padding: 20,
-    marginBottom: 40,
+    marginBottom: 32,
     justifyContent: 'center',
     alignItems: 'center',
     shadowOffset: { width: 0, height: 10 },
@@ -500,12 +557,35 @@ const styles = StyleSheet.create({
   },
   analysisLogo: { width: 60, height: 60 },
   analysisTextGroup: { alignItems: 'center', marginBottom: 50 },
-  analysisTitle: { fontSize: 22, fontWeight: '800', textAlign: 'center', marginBottom: 12 },
-  analysisSubtitle: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
-  progressContainer: { width: '100%', alignItems: 'center' },
-  progressTrack: { width: '100%', height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 12 },
+  analysisTitle: { fontSize: 22, fontWeight: '900', textAlign: 'center', marginBottom: 8, letterSpacing: -0.5 },
+  analysisSubtitle: { fontSize: 14, fontWeight: '500', textAlign: 'center', opacity: 0.7 },
+  // Checklist
+  checklistContainer: { width: '100%', gap: 10, marginBottom: 32 },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 12,
+  },
+  checkIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkLabel: { flex: 1, fontSize: 14, letterSpacing: -0.1 },
+  checkDoneText: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  // Progress
+  progressContainer: { width: '100%' },
+  progressTrack: { width: '100%', height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 10 },
   progressBar: { height: '100%', borderRadius: 3 },
-  progressPercentage: { fontSize: 13, fontWeight: '700' },
+  progressFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressLabel: { fontSize: 13, fontWeight: '500' },
+  progressPercentage: { fontSize: 13, fontWeight: '800' },
   previewContainer: {
     width: '100%',
     aspectRatio: 16/10,

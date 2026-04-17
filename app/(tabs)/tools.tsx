@@ -2,8 +2,9 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   StyleSheet, View, Text, ScrollView, Pressable, TextInput,
   Modal, KeyboardAvoidingView, Platform, ActivityIndicator,
-  Image, Dimensions, Alert
+  Dimensions, Alert
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   FadeInUp, ZoomIn, FadeIn,
