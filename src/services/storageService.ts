@@ -11,6 +11,10 @@ const COMPLETED_DAYS_KEY = '@socify_completed_days';
 const WEEKLY_BONUS_CLAIMED_KEY = '@socify_weekly_bonus_claimed';
 const COMPLETED_TASKS_KEY = '@socify_completed_tasks';
 const DEV_PRO_OVERRIDE_KEY = '@socify_dev_pro_override';
+const SUPABASE_PROFILE_KEY = '@socify_supabase_profile';
+const BRANDS_CACHE_KEY = '@socify_brands_cache';
+const DEVICE_ID_KEY = '@socify_device_id';
+const RECOVERY_SESSION_KEY = '@socify_recovery_session';
 
 export interface UserProfile {
   alias: string;
@@ -198,5 +202,66 @@ export class StorageService {
         await SecureStore.setItemAsync(DEV_PRO_OVERRIDE_KEY, isPro.toString());
       }
     } catch (e) { console.warn("Storage Error:", e); }
+  }
+
+  static async saveSupabaseProfile(profile: any) {
+    try {
+      await AsyncStorage.setItem(SUPABASE_PROFILE_KEY, JSON.stringify(profile));
+    } catch (e) { console.warn("Storage Error:", e); }
+  }
+
+  static async loadSupabaseProfile(): Promise<any | null> {
+    try {
+      const val = await AsyncStorage.getItem(SUPABASE_PROFILE_KEY);
+      return val ? JSON.parse(val) : null;
+    } catch { return null; }
+  }
+
+  static async saveBrandsCache(brands: any[]) {
+    try {
+      await AsyncStorage.setItem(BRANDS_CACHE_KEY, JSON.stringify(brands));
+    } catch (e) { console.warn("Storage Error:", e); }
+  }
+
+  static async loadBrandsCache(): Promise<any[] | null> {
+    try {
+      const val = await AsyncStorage.getItem(BRANDS_CACHE_KEY);
+      return val ? JSON.parse(val) : null;
+    } catch { return null; }
+  }
+
+  static async clearAllAuth() {
+    try {
+      await AsyncStorage.removeItem(SUPABASE_PROFILE_KEY);
+      await AsyncStorage.removeItem(BRANDS_CACHE_KEY);
+      await AsyncStorage.removeItem(ONBOARDING_KEY);
+      await SecureStore.deleteItemAsync(RECOVERY_SESSION_KEY);
+    } catch (e) { console.warn("Storage Error:", e); }
+  }
+
+  static async getDeviceId(): Promise<string> {
+    try {
+      let id = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+      if (!id) {
+        id = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        await SecureStore.setItemAsync(DEVICE_ID_KEY, id);
+      }
+      return id;
+    } catch {
+      return 'unknown_device';
+    }
+  }
+
+  static async saveRecoverySession(session: any) {
+    try {
+      await SecureStore.setItemAsync(RECOVERY_SESSION_KEY, JSON.stringify(session));
+    } catch (e) { console.warn("Storage Error:", e); }
+  }
+
+  static async loadRecoverySession(): Promise<any | null> {
+    try {
+      const val = await SecureStore.getItemAsync(RECOVERY_SESSION_KEY);
+      return val ? JSON.parse(val) : null;
+    } catch { return null; }
   }
 }

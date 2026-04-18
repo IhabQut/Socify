@@ -139,39 +139,83 @@ const RequirementInput = ({ req, theme, isLast, value, onValueChange }: any) => 
     const textValue = req.type === 'text' ? value : '';
 
     const requestAndPick = async (useCamera: boolean) => {
+        // Ensure the sheet is dismissed first
         setShowSheet(false);
-        await new Promise(r => setTimeout(r, 400)); // wait for sheet to close
+        
+        // Critical: Native pickers (especially on iOS) often fail to launch if a Modal transition is in progress.
+        // We wait for the sheet to fully disappear before initiating the native call.
+        await new Promise(r => setTimeout(r, Platform.OS === 'ios' ? 600 : 200));
 
-        if (useCamera) {
-            const { status } = await ImagePicker.requestCameraPermissionsAsync();
-            if (status !== 'granted') { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); return; }
-            const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: req.type === 'video'
-                    ? ImagePicker.MediaTypeOptions.Videos
-                    : ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: false,
-                quality: 0.85,
-                aspect: [4, 3],
-            });
-            if (!result.canceled && result.assets[0]) {
-                onValueChange(result.assets[0].uri);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const targetMediaType = req.type === 'video' ? ['videos'] : ['images'];
+
+        try {
+            if (useCamera) {
+                // 1. Check current status
+                let { status, canAskAgain } = await ImagePicker.getCameraPermissionsAsync();
+                
+                // 2. Request if not granted and we can ask
+                if (status !== 'granted' && canAskAgain) {
+                    const res = await ImagePicker.requestCameraPermissionsAsync();
+                    status = res.status;
+                    canAskAgain = res.canAskAgain;
+                }
+
+                if (status !== 'granted') {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                    Alert.alert(
+                        "Camera Permission Required",
+                        "Socify needs camera access to take photos. Please enable it in your device settings.",
+                        [{ text: "OK" }]
+                    );
+                    return;
+                }
+
+                const result = await ImagePicker.launchCameraAsync({
+                    mediaTypes: targetMediaType as any,
+                    allowsEditing: false,
+                    quality: 0.8,
+                });
+
+                if (!result.canceled && result.assets[0]) {
+                    onValueChange(result.assets[0].uri);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+            } else {
+                // 1. Check current status
+                let { status, canAskAgain } = await ImagePicker.getMediaLibraryPermissionsAsync();
+                
+                // 2. Request if not granted and we can ask
+                if (status !== 'granted' && canAskAgain) {
+                    const res = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                    status = res.status;
+                    canAskAgain = res.canAskAgain;
+                }
+
+                if (status !== 'granted') {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                    Alert.alert(
+                        "Library Permission Required",
+                        "Socify needs access to your photos. Please enable it in your device settings.",
+                        [{ text: "OK" }]
+                    );
+                    return;
+                }
+
+                const result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: targetMediaType as any,
+                    allowsEditing: false,
+                    quality: 0.8,
+                });
+
+                if (!result.canceled && result.assets[0]) {
+                    onValueChange(result.assets[0].uri);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
             }
-        } else {
-            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (status !== 'granted') { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); return; }
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: req.type === 'video'
-                    ? ImagePicker.MediaTypeOptions.Videos
-                    : ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: false,
-                quality: 0.85,
-                aspect: [4, 3],
-            });
-            if (!result.canceled && result.assets[0]) {
-                onValueChange(result.assets[0].uri);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            }
+        } catch (error: any) {
+            console.error("[ImagePicker] Error launching:", error);
+            // Diagnostic Alert to help the user identify the exact root cause
+            Alert.alert("Picker Error", `Could not open ${useCamera ? 'Camera' : 'Library'}.\n\nError: ${error.message || 'Unknown'}`);
         }
     };
 
@@ -566,7 +610,18 @@ export default function TemplateExecutionScreen() {
                             }
 
                             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                            setTimeout(() => { router.back(); }, 1500);
+                            // Redirect to Results screen instead of going back
+                            setTimeout(() => { 
+                                router.replace({
+                                    pathname: '/result',
+                                    params: { 
+                                        templateId: template.id,
+                                        batchSize: batchSize,
+                                        style: generationStyle,
+                                        aiCaption: aiCaption ? 'true' : 'false'
+                                    }
+                                }); 
+                            }, 500);
                         }}
                     >
                         <Ionicons name={isReady ? "color-wand" : "lock-closed"} size={20} color={isReady ? theme.background : theme.icon} />

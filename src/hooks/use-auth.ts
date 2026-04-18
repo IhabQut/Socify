@@ -48,6 +48,7 @@ export interface OnboardingParams {
 }
 
 import { createContext, useContext, ReactNode } from 'react';
+import { StorageService } from '@/services/storageService';
 
 export function useAuthInternal() {
   const [session, setSession] = useState<Session | null>(null);
@@ -56,39 +57,90 @@ export function useAuthInternal() {
   const [brands, setBrands] = useState<BrandData[]>([]);
   const [brandPlatforms, setBrandPlatforms] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
   const identifiedUserId = useRef<string | null>(null);
   const fetchCount = useRef(0);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        refreshProfile(session.user.id);
-        if (identifiedUserId.current !== session.user.id) {
-          identifyUser(session.user.id); 
-          identifiedUserId.current = session.user.id;
+    // 1. Initial Local Cache Load
+    async function loadInitialCache() {
+      try {
+        const cachedProfile = await StorageService.loadSupabaseProfile();
+        const cachedBrands = await StorageService.loadBrandsCache();
+        
+        if (cachedProfile) setProfile(cachedProfile);
+        if (cachedBrands) setBrands(cachedBrands);
+      } catch (e) {
+        console.warn("[Auth] Cache load failed", e);
+      }
+    }
+
+    loadInitialCache();
+
+    // 2. Supabase Session Init & Recovery
+    async function initSession() {
+      const { data: { session: existingSession } } = await supabase.auth.getSession();
+      
+      let finalSession = existingSession;
+
+      // If no session found in standard storage, try recovery from SecureStore
+      if (!existingSession) {
+        const recoveryData = await StorageService.loadRecoverySession();
+        if (recoveryData?.access_token && recoveryData?.refresh_token) {
+          console.log("[Auth] Attempting recovery from SecureStore...");
+          const { data, error } = await supabase.auth.setSession({
+            access_token: recoveryData.access_token,
+            refresh_token: recoveryData.refresh_token
+          });
+          if (!error && data.session) {
+            finalSession = data.session;
+          }
+        }
+      }
+
+      setSession(finalSession);
+      setUser(finalSession?.user ?? null);
+      
+      if (finalSession?.user) {
+        refreshProfile(finalSession.user.id);
+        if (identifiedUserId.current !== finalSession.user.id) {
+          identifyUser(finalSession.user.id); 
+          identifiedUserId.current = finalSession.user.id;
         }
       } else {
         setLoading(false);
       }
-    });
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    initSession();
+
+    // 3. Auth Listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+
       if (session?.user) {
+        // Save recovery session on every successful auth state change (e.g. login, refresh)
+        StorageService.saveRecoverySession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token
+        });
+
         await refreshProfile(session.user.id);
         if (identifiedUserId.current !== session.user.id) {
           identifyUser(session.user.id); 
           identifiedUserId.current = session.user.id;
         }
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         setProfile(null);
         setBrands([]);
         setBrandPlatforms([]);
         setLoading(false);
         identifiedUserId.current = null;
+        StorageService.clearAllAuth();
+      } else if (!session) {
+        // Just a network drop or idle state, don't clear everything yet
+        setLoading(false);
       }
     });
 
@@ -105,8 +157,8 @@ export function useAuthInternal() {
     try {
       // Parallelize fetches for 60% faster load time
       const [uRes, bRes] = await Promise.all([
-        supabase.from('users').select('*').eq('id', userId).single(),
-        supabase.from('brands').select('*').eq('user_id', userId)
+        supabase.from('users').select('*').eq('id', targetId).single(),
+        supabase.from('brands').select('*').eq('user_id', targetId)
       ]);
 
       // If a newer fetch has started, ignore this one to prevent state flickering
@@ -116,17 +168,24 @@ export function useAuthInternal() {
       const { data: bData, error: bError } = bRes;
       
       // Handle User Data
-      if (uError && uError.code !== 'PGRST116') {
-        console.error('Error fetching user:', uError);
+      if (uError) {
+        // PGRST116 means not found, which is a valid state for new users
+        if (uError.code === 'PGRST116') {
+           setProfile(null);
+           StorageService.clearAllAuth();
+        } else {
+           // Network error or other system error: Keep current/cached profile
+           console.warn('[Auth] Non-recoverable fetch error, keeping cache:', uError);
+        }
       } else if (uData) {
         setProfile(uData);
-      } else {
-        setProfile(null);
+        StorageService.saveSupabaseProfile(uData);
       }
       
       // Handle Brand Data
       if (bData && bData.length > 0) {
         setBrands(bData);
+        StorageService.saveBrandsCache(bData);
         
         // Fetch Platforms for Default Brand
         const defaultId = bData.find(b => b.is_default)?.id || bData[0]?.id;
@@ -155,9 +214,46 @@ export function useAuthInternal() {
       const { data, error } = await supabase.auth.signInAnonymously();
       if (error) throw error;
       
-      // Identify guest in RevenueCat
-      if (data?.user) {
-        await identifyUser(data.user.id);
+      const guestUser = data?.user;
+      if (guestUser) {
+        await identifyUser(guestUser.id);
+        
+        // --- Device Recognition & Handover Logic ---
+        const deviceId = await StorageService.getDeviceId();
+        
+        // 1. Check if an old profile exists for this device ID
+        const { data: existingProfiles, error: pError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('device_id', deviceId)
+          .neq('id', guestUser.id) // Don't match self
+          .order('updated_at', { ascending: false });
+
+        if (!pError && existingProfiles && existingProfiles.length > 0) {
+          const oldProfile = existingProfiles[0];
+          console.log("[Auth] Found existing device profile, performing handover...");
+          
+          // 2. "Adopt" the old profile's important data into the new account if new account blank
+          // Note: This prevents duplication of users on the same device
+          const { error: updateError } = await supabase
+            .from('users')
+            .upsert({
+              id: guestUser.id,
+              full_name: oldProfile.full_name,
+              credits: oldProfile.credits,
+              is_pro: oldProfile.is_pro,
+              onboarding_completed: oldProfile.onboarding_completed,
+              discovery_source: oldProfile.discovery_source,
+              country: oldProfile.country,
+              device_id: deviceId, // Re-bind to this device
+              metadata: oldProfile.metadata
+            });
+            
+          if (!updateError) {
+             console.log("[Auth] Handover successful.");
+             await refreshProfile(guestUser.id);
+          }
+        }
       }
       
       return { data, error: null };
@@ -175,6 +271,7 @@ export function useAuthInternal() {
     if (!currentUser) return { error: new Error('Not authenticated') };
     setLoading(true);
     try {
+      const deviceId = await StorageService.getDeviceId();
       // Geoloc resolution is now handled by the UI before invoking
       let resolvedCountry = params.country || 'Unknown';
 
@@ -185,6 +282,7 @@ export function useAuthInternal() {
         discovery_source: params.discoverySource,
         country: resolvedCountry,
         onboarding_completed: true,
+        device_id: deviceId, // Attach Device ID here
         updated_at: new Date().toISOString(),
         metadata: {
            roadmap_start_date: Date.now(),
@@ -292,6 +390,7 @@ export function useAuthInternal() {
     setUser(null);
     setSession(null);
     identifiedUserId.current = null;
+    await StorageService.clearAllAuth();
   }
 
   async function updateProfile(updates: Partial<Profile>) {
@@ -358,7 +457,7 @@ export function useAuthInternal() {
     updateBrandPlatforms,
     isAuthenticated: !!user,
     isGuest: profile?.is_guest ?? false,
-    hasCompletedOnboarding: profile?.onboarding_completed ?? false,
+    hasCompletedOnboarding: !!(profile?.onboarding_completed),
     refreshProfile
   };
 }

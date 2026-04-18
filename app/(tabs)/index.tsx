@@ -14,6 +14,7 @@ import { usePurchases } from '@/hooks/use-purchases';
 import { restorePurchases, ENTITLEMENT_ID } from '@/lib/purchases';
 import { StorageService } from '@/services/storageService';
 import { TemplateCard } from '@/components/TemplateCard';
+import { FeaturedCarousel } from '@/components/FeaturedCarousel';
 import { BlurView } from 'expo-blur';
 import { Skeleton } from '@/components/ui/Skeleton';
 
@@ -208,28 +209,7 @@ export default function CreativeScreen() {
 
         {/* Banner Section */}
         {!search && (
-          <View style={styles.bannerWrapper}>
-            <Animated.View entering={FadeInUp.delay(200).duration(600)} style={styles.bannerCard}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1000' }} 
-                style={StyleSheet.absoluteFillObject} 
-                borderRadius={28} 
-              />
-              <View style={[styles.bannerBadge, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-                <Ionicons name="sparkles" size={12} color="#FFF" style={{ marginRight: 4 }} />
-                <Text style={styles.bannerBadgeText}>FEATURED</Text>
-              </View>
-              
-              <View style={styles.bannerGlassWrapper}>
-                <BlurView intensity={40} tint="dark" style={styles.bannerBlur}>
-                  <Text style={[styles.bannerTitle, { color: '#FFF' }]}>Visual Storytelling 2026</Text>
-                  <Text style={[styles.bannerSubtitle, { color: 'rgba(255,255,255,0.8)' }]}>
-                    Unlock next-generation AI visuals for your brand
-                  </Text>
-                </BlurView>
-              </View>
-            </Animated.View>
-          </View>
+          <FeaturedCarousel />
         )}
 
         {error ? (
