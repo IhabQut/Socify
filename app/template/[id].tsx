@@ -15,7 +15,7 @@ import { CreditService } from '@/services/creditService';
 import { BlurView } from 'expo-blur';
 import { Alert } from 'react-native';
 import { useAuth } from '@/hooks/use-auth';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Skeleton } from '@/components/ui/Skeleton';
 
 const { width, height } = Dimensions.get('window');
@@ -102,6 +102,11 @@ const PickerSheet = ({ visible, onClose, onCamera, onLibrary, theme }: any) => (
 
 // ── Tutorial Video Modal ──────────────────────────────────────
 const TutorialVideoModal = ({ visible, videoUrl, onClose, theme }: any) => {
+    const player = useVideoPlayer(videoUrl, player => {
+        player.loop = true;
+        player.play();
+    });
+
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={[styles.tutorialOverlay, { backgroundColor: '#000' }]}>
@@ -112,16 +117,12 @@ const TutorialVideoModal = ({ visible, videoUrl, onClose, theme }: any) => {
                     <Text style={styles.tutorialTitle}>Template Tutorial</Text>
                 </View>
                 
-                <Video
-                    source={{ uri: videoUrl }}
-                    rate={1.0}
-                    volume={1.0}
-                    isMuted={false}
-                    resizeMode={ResizeMode.CONTAIN}
-                    shouldPlay
-                    isLooping
-                    useNativeControls
+                <VideoView
                     style={styles.tutorialPlayer}
+                    player={player}
+                    allowsFullscreen
+                    allowsPictureInPicture
+                    contentFit="contain"
                 />
             </View>
         </Modal>
@@ -599,15 +600,7 @@ export default function TemplateExecutionScreen() {
                             // Refresh profile state after successful deduction
                             refreshProfile();
 
-                            if (template.id !== 'default') {
-                                const { error } = await supabase.from('generated_assets').insert({
-                                    template_id: template.id,
-                                    title: `${template.title} Output`,
-                                    prompt: `Style: ${generationStyle}, Captions: ${aiCaption}, Variants: ${batchSize}`,
-                                    asset_type: 'image'
-                                });
-                                if (error) console.error("Error creating asset", error);
-                            }
+                            // The actual asset will be synced in the result screen using AssetSyncService
 
                             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                             // Redirect to Results screen instead of going back

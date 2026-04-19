@@ -48,7 +48,6 @@
           }
         }
       ],
-      "expo-av",
       "expo-secure-store",
       [
         "expo-image-picker",
@@ -56,7 +55,8 @@
           "photosPermission": "Socify access your photos to help you create stunning designs.",
           "cameraPermission": "Socify access your camera to capture media for your templates."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

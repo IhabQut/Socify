@@ -105,7 +105,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'dark';
   const theme = Colors[colorScheme];
-  const { signInGuest, completeOnboarding, session, user, loading, hasCompletedOnboarding } = useAuth();
+  const { signInGuest, completeOnboarding, session, user, loading, hasCompletedOnboarding, isAuthenticated } = useAuth();
 
   // Move all hooks ABOVE early returns to maintain consistent hook order
   const onScroll = useAnimatedScrollHandler({
@@ -134,7 +134,7 @@ export default function OnboardingScreen() {
   }).current;
 
   // Early returns must come AFTER all hooks are declared
-  if (!loading && hasCompletedOnboarding) {
+  if (!loading && isAuthenticated && hasCompletedOnboarding) {
     return <Redirect href="/(tabs)" />;
   }
 

@@ -9,7 +9,10 @@ import Animated, { FadeIn, SlideInDown, useAnimatedStyle, useSharedValue, withRe
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as RegularFileSystem from 'expo-file-system';
 import { BlurView } from 'expo-blur';
+import { AssetSyncService } from '@/services/assetSyncService';
+import { useAuth } from '@/hooks/use-auth';
 
 const { width, height } = Dimensions.get('window');
 
@@ -81,14 +84,39 @@ export default function ResultScreen() {
     
     const [expandedImage, setExpandedImage] = useState<string | null>(null);
 
+    const { user } = useAuth();
+
     useEffect(() => {
         // Simulate AI Generation time (3.5 seconds)
-        const timer = setTimeout(() => {
+        const timer = setTimeout(async () => {
             const generated = generateMockVariants(batchSize, (style as string) || 'Realistic');
             setVariants(generated);
             setCaptionText(generated[0]?.caption || '');
             setIsGenerating(false);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+            // Trigger background sync for each generated asset
+            if (user) {
+                for (let i = 0; i < generated.length; i++) {
+                    const variant = generated[i];
+                    try {
+                        // Download the mock URL to a local URI so the sync service can handle it
+                        const tempUri = `${RegularFileSystem.documentDirectory}temp_gen_${i}.jpg`;
+                        const { uri: localUri } = await RegularFileSystem.downloadAsync(variant.images[0], tempUri);
+                        
+                        await AssetSyncService.handleNewGeneratedAsset({
+                            userId: user.id,
+                            templateId: templateId as string,
+                            title: variant.title,
+                            prompt: `Style: ${style}, Captions: ${aiCaption}, Variant: ${i+1}`,
+                            assetType: 'image',
+                            localUri: localUri
+                        });
+                    } catch (err) {
+                        console.error('Failed to queue asset for sync:', err);
+                    }
+                }
+            }
         }, 3500);
 
         return () => clearTimeout(timer);

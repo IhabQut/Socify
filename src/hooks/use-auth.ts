@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import { identifyUser } from '@/lib/purchases';
@@ -19,6 +19,7 @@ export interface Profile {
   onboarding_completed: boolean;
   revenuecat_id: string | null;
   metadata: any | null; 
+  device_id: string | null;
 }
 
 export interface BrandData {
@@ -30,7 +31,8 @@ export interface BrandData {
   has_local_shop: boolean;
   marketing_frequency: string | null;
   primary_goal: string | null;
-  preferred_tone: string | null;
+  platforms: string[];
+  brand_colors?: string[];
   is_default: boolean;
 }
 
@@ -55,7 +57,6 @@ export function useAuthInternal() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [brands, setBrands] = useState<BrandData[]>([]);
-  const [brandPlatforms, setBrandPlatforms] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
   const identifiedUserId = useRef<string | null>(null);
@@ -134,7 +135,6 @@ export function useAuthInternal() {
       } else if (event === 'SIGNED_OUT') {
         setProfile(null);
         setBrands([]);
-        setBrandPlatforms([]);
         setLoading(false);
         identifiedUserId.current = null;
         StorageService.clearAllAuth();
@@ -186,17 +186,6 @@ export function useAuthInternal() {
       if (bData && bData.length > 0) {
         setBrands(bData);
         StorageService.saveBrandsCache(bData);
-        
-        // Fetch Platforms for Default Brand
-        const defaultId = bData.find(b => b.is_default)?.id || bData[0]?.id;
-        const { data: pData } = await supabase
-          .from('brand_platforms')
-          .select('platform_id')
-          .eq('brand_id', defaultId);
-        
-        if (currentFetchId === fetchCount.current && pData) {
-          setBrandPlatforms(pData.map(p => p.platform_id));
-        }
       }
 
     } catch (e) {
@@ -293,6 +282,21 @@ export function useAuthInternal() {
       if (userError) throw userError;
 
       // 2. Insert Default Brand Table
+      const platformMap: Record<string, string> = {
+        'Instagram': 'instagram',
+        'Facebook': 'facebook',
+        'TikTok': 'tiktok',
+        'Twitter/X': 'twitter',
+        'LinkedIn': 'linkedin',
+        'YouTube': 'youtube',
+        'Threads': 'threads',
+        'Pinterest': 'pinterest'
+      };
+
+      const platformsToSave = params.platforms
+          .map(p => platformMap[p] || p.toLowerCase())
+          .filter(Boolean);
+
       const { data: brand, error: brandError } = await supabase.from('brands').insert({
         user_id: currentUser.id,
         shop_name: params.shopName,
@@ -301,37 +305,11 @@ export function useAuthInternal() {
         has_local_shop: params.hasLocalShop,
         marketing_frequency: params.frequency,
         primary_goal: params.goal,
-        preferred_tone: 'Professional', // Default to professional if removed from UI
+        platforms: platformsToSave,
         is_default: true
       }).select().single();
 
       if (brandError) throw brandError;
-
-      // 3. Map Platforms to Brand
-      if (brand && params.platforms.length > 0) {
-        // Simple mapping: lowercase and alphanumeric only (e.g., 'Twitter/X' -> 'twitterx')
-        const platformMap: Record<string, string> = {
-          'Instagram': 'instagram',
-          'Facebook': 'facebook',
-          'TikTok': 'tiktok',
-          'Twitter/X': 'twitter',
-          'LinkedIn': 'linkedin',
-          'YouTube': 'youtube',
-          'Threads': 'threads',
-          'Pinterest': 'pinterest'
-        };
-
-        const platformInserts = params.platforms
-          .filter(p => platformMap[p])
-          .map(p => ({
-            brand_id: brand.id,
-            platform_id: platformMap[p]
-           }));
-           
-        if (platformInserts.length > 0) {
-          await supabase.from('brand_platforms').insert(platformInserts);
-        }
-      }
 
       await refreshProfile(currentUser.id);
       return { error: null };
@@ -386,7 +364,6 @@ export function useAuthInternal() {
     await supabase.auth.signOut();
     setProfile(null);
     setBrands([]);
-    setBrandPlatforms([]);
     setUser(null);
     setSession(null);
     identifiedUserId.current = null;
@@ -423,22 +400,27 @@ export function useAuthInternal() {
     const defaultBrandId = brands.find(b => b.is_default)?.id || brands[0]?.id;
     if (!defaultBrandId) return { error: new Error('No brand found') };
 
-    // 1. Clear old platforms
-    const { error: delError } = await supabase.from('brand_platforms').delete().eq('brand_id', defaultBrandId);
-    if (delError) return { error: delError };
-
-    // 2. Insert new platforms
-    if (platformIds.length > 0) {
-      const inserts = platformIds.map(pid => ({
-        brand_id: defaultBrandId,
-        platform_id: pid
-      }));
-      const { error: insError } = await supabase.from('brand_platforms').insert(inserts);
-      if (insError) return { error: insError };
-    }
+    const { error: updError } = await supabase.from('brands')
+      .update({ platforms: platformIds })
+      .eq('id', defaultBrandId);
+      
+    if (updError) return { error: updError };
     
+    await refreshProfile(user.id);
     return { error: null };
   }
+
+  // Memoize derived values to prevent new references on every render,
+  // which would cause infinite useEffect loops in consumers like studio.tsx.
+  const defaultBrand = useMemo(
+    () => brands.find(b => b.is_default) || brands[0] || null,
+    [brands]
+  );
+
+  const brandPlatforms = useMemo(
+    () => defaultBrand?.platforms || [],
+    [defaultBrand]
+  );
 
   return {
     session,
@@ -446,7 +428,7 @@ export function useAuthInternal() {
     profile,
     brands,
     brandPlatforms,
-    defaultBrand: brands.find(b => b.is_default) || brands[0] || null,
+    defaultBrand,
     loading,
     signInGuest,
     completeOnboarding,

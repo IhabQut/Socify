@@ -12,6 +12,7 @@ import { configurePurchases } from '@/lib/purchases';
 import * as Notifications from 'expo-notifications';
 import { NotificationService } from '@/services/notificationService';
 import * as WebBrowser from 'expo-web-browser';
+import { AssetSyncService } from '@/services/assetSyncService';
 
 if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_KEY) {
   throw new Error("Missing critical EXPO_PUBLIC_SUPABASE_URL or KEY. Halting Boot.");
@@ -45,6 +46,8 @@ function RootLayoutInternal() {
     configurePurchases();
     // Request notification permissions on mount
     NotificationService.requestPermissions();
+    // Start listening for network connection to sync offline assets
+    AssetSyncService.startNetworkListener();
   }, []);
 
   useEffect(() => {

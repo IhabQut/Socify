@@ -151,7 +151,7 @@ export default function StudioScreen() {
       setIndustry(defaultBrand.industry || '');
       setBrandIdentity(defaultBrand.brand_identity || '');
       setGoal(defaultBrand.primary_goal || '');
-      setTone(defaultBrand.preferred_tone || '');
+      // preferred_tone column was removed from schema
       setFrequency(defaultBrand.marketing_frequency || '');
     }
     if (brandPlatforms && !isEditing) {
@@ -188,12 +188,11 @@ export default function StudioScreen() {
         industry: industry,
         brand_identity: brandIdentity,
         primary_goal: goal,
-        preferred_tone: 'Professional', // Defaulting as removed from UI
         marketing_frequency: frequency
       });
       if (bErr) throw bErr;
 
-      // 3. Update Platforms (brand_platforms table)
+      // 3. Update Platforms (stored as array in brands table)
       const platformIds = selectedPlatforms.map(name => platformNameMap[name] || name.toLowerCase());
       const { error: plError } = await updateBrandPlatforms(platformIds);
       if (plError) throw plError;
